@@ -37,6 +37,30 @@ const DEFS = {
   iron_thorns:  { name:'Iron Thorns',  side:'violet',  hp:8,  dmg:3, move:'knight',       label:'ITH', dexId:995,
     special:{ name:'Thunder Cage', type:'ranged', dmg:4, cd:2 } },
   iron_treads:  { name:'Iron Treads',  side:'violet',  hp:9,  dmg:4, move:'leap_bishop',  label:'ITR', dexId:990  },
+
+  // ── 1250 ELO ──
+  great_tusk:  { name:'Great Tusk',   side:'scarlet', hp:11, dmg:4, move:'rook',         label:'GRT', dexId:984,
+    special:{ name:'Headlong Rush', type:'ranged_stun', dmg:4, cd:3 } },
+  ting_lu:     { name:'Ting-Lu',      side:'violet',  hp:12, dmg:4, move:'rook',         label:'TLU', dexId:1001,
+    special:{ name:'Ruinous Shock', type:'aoe_dmg', dmg:3, cd:3 } },
+
+  // ── 1500 ELO ──
+  chi_yu:      { name:'Chi-Yu',       side:'scarlet', hp:8,  dmg:5, move:'queen',        label:'CHY', dexId:1004,
+    special:{ name:'Ruinous Flame', type:'ranged', dmg:6, cd:2 } },
+  iron_leaves: { name:'Iron Leaves',  side:'violet',  hp:9,  dmg:4, move:'queen',        label:'ILE', dexId:1010,
+    special:{ name:'Psycho Cut', type:'ranged', dmg:5, cd:2 } },
+
+  // ── 1750 ELO ──
+  glimmora:    { name:'Glimmora',     side:'scarlet', hp:9,  dmg:4, move:'leap_bishop',  label:'GLM', dexId:970,
+    special:{ name:'Mortal Spin', type:'aoe_dmg', dmg:3, cd:2 } },
+  chien_pao:   { name:'Chien-Pao',    side:'violet',  hp:8,  dmg:5, move:'leap_bishop',  label:'CHP', dexId:1002,
+    special:{ name:'Ruinous Ice', type:'ranged_stun', dmg:5, cd:3 } },
+
+  // ── 2000 ELO ──
+  salamence:   { name:'Salamence',    side:'scarlet', hp:10, dmg:5, move:'queen',        label:'SAL', dexId:373,
+    special:{ name:'Outrage', type:'aoe_dmg', dmg:4, cd:4 } },
+  hydreigon:   { name:'Hydreigon',    side:'violet',  hp:9,  dmg:5, move:'queen',        label:'HYD', dexId:635,
+    special:{ name:'Hyper Voice', type:'aoe_dmg', dmg:4, cd:4 } },
 };
 
 const PVAL       = { legendary:100, queen:9, leap_bishop:6, rook:6, knight:5, king:2 };
@@ -54,14 +78,22 @@ const START = [
 
 // Which pieces can be unlocked, at what ELO, and which slot they replace
 const UNLOCK_POOL = [
-  { type:'walking_wake', side:'scarlet', slot:'queen',  eloReq:250 },
-  { type:'iron_valiant', side:'violet',  slot:'queen',  eloReq:250 },
-  { type:'slither_wing', side:'scarlet', slot:'rook',   eloReq:500 },
-  { type:'iron_hands',   side:'violet',  slot:'rook',   eloReq:500 },
-  { type:'gouging_fire', side:'scarlet', slot:'knight', eloReq:750 },
-  { type:'iron_thorns',  side:'violet',  slot:'knight', eloReq:750 },
+  { type:'walking_wake', side:'scarlet', slot:'queen',  eloReq:250  },
+  { type:'iron_valiant', side:'violet',  slot:'queen',  eloReq:250  },
+  { type:'slither_wing', side:'scarlet', slot:'rook',   eloReq:500  },
+  { type:'iron_hands',   side:'violet',  slot:'rook',   eloReq:500  },
+  { type:'gouging_fire', side:'scarlet', slot:'knight', eloReq:750  },
+  { type:'iron_thorns',  side:'violet',  slot:'knight', eloReq:750  },
   { type:'brute_bonnet', side:'scarlet', slot:'bishop', eloReq:1000 },
   { type:'iron_treads',  side:'violet',  slot:'bishop', eloReq:1000 },
+  { type:'great_tusk',   side:'scarlet', slot:'rook',   eloReq:1250 },
+  { type:'ting_lu',      side:'violet',  slot:'rook',   eloReq:1250 },
+  { type:'chi_yu',       side:'scarlet', slot:'queen',  eloReq:1500 },
+  { type:'iron_leaves',  side:'violet',  slot:'queen',  eloReq:1500 },
+  { type:'glimmora',     side:'scarlet', slot:'bishop', eloReq:1750 },
+  { type:'chien_pao',    side:'violet',  slot:'bishop', eloReq:1750 },
+  { type:'salamence',    side:'scarlet', slot:'queen',  eloReq:2000 },
+  { type:'hydreigon',    side:'violet',  slot:'queen',  eloReq:2000 },
 ];
 
 const DEFAULT_TEAM = {
@@ -90,6 +122,7 @@ const spriteUrl = t =>
 let G = {};
 let socket = null;
 let ACCOUNT = null;  // persists across game resets — never wiped by startGame()
+let _pendingTeam = null; // pending team customizer state across re-renders
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BOARD
@@ -600,7 +633,11 @@ async function saveTeamToServer(team){
 
 function showTeamCustomizer(){
   const elo=ACCOUNT?.elo||0;
-  const team=JSON.parse(JSON.stringify(ACCOUNT?.team||{}));
+  // Use pending state if it exists (re-render after swap), otherwise fresh copy from account
+  if(!_pendingTeam){
+    _pendingTeam=JSON.parse(JSON.stringify(ACCOUNT?.team||{}));
+  }
+  const team=_pendingTeam;
   if(!team.scarlet)team.scarlet={};
   if(!team.violet)team.violet={};
 
@@ -619,17 +656,16 @@ function showTeamCustomizer(){
 
   function slotRow(side,slot,defaultType){
     const cur=team[side][slot]||defaultType;
-    const alt=unlocked.find(u=>u.side===side&&u.slot===slot);
-    const locked=UNLOCK_POOL.find(u=>u.side===side&&u.slot===slot&&elo<u.eloReq);
-    let html=`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(34,197,94,0.1)">
-      <div style="font-size:0.72rem;color:#4a7a4a;width:52px;text-transform:capitalize">${slot}</div>`;
+    const alts=unlocked.filter(u=>u.side===side&&u.slot===slot);
+    const nextLocked=UNLOCK_POOL.filter(u=>u.side===side&&u.slot===slot&&elo<u.eloReq).sort((a,b)=>a.eloReq-b.eloReq)[0];
+    let html=`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(34,197,94,0.1);flex-wrap:wrap">
+      <div style="font-size:0.68rem;color:#4a7a4a;width:48px;text-transform:capitalize">${slot}</div>`;
     html+=pieceCard(defaultType,cur===defaultType,`teamSwap('${side}','${slot}','${defaultType}')`);
-    if(alt){
-      html+=`<div style="color:#ffd700;font-size:0.8rem">⇄</div>`;
+    alts.forEach(alt=>{
+      html+=`<div style="color:#ffd700;font-size:0.75rem">⇄</div>`;
       html+=pieceCard(alt.type,cur===alt.type,`teamSwap('${side}','${slot}','${alt.type}')`);
-    }else if(locked){
-      html+=`<div style="color:#2a4a2a;font-size:0.72rem;margin-left:8px">🔒 Unlock at ${locked.eloReq} ELO</div>`;
-    }
+    });
+    if(nextLocked)html+=`<div style="color:#2a4a2a;font-size:0.62rem;margin-left:4px">🔒${nextLocked.eloReq}</div>`;
     html+=`</div>`;
     return html;
   }
@@ -659,20 +695,25 @@ function showTeamCustomizer(){
       </div>
       <div style="text-align:center;margin-top:22px;display:flex;gap:12px;justify-content:center">
         <button onclick="saveCustomTeam()" style="background:linear-gradient(135deg,#22c55e,#fbbf24);color:#031a03;border:none;border-radius:8px;padding:10px 28px;font-weight:800;cursor:pointer">💾 Save Team</button>
-        <button onclick="document.getElementById('team-modal').remove()" style="background:rgba(34,197,94,0.08);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:8px;padding:10px 22px;font-weight:700;cursor:pointer">Close</button>
+        <button onclick="closeTeamCustomizer()" style="background:rgba(34,197,94,0.08);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:8px;padding:10px 22px;font-weight:700;cursor:pointer">Close</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
 
   // expose helpers to onclick
   window.teamSwap=(side,slot,type)=>{
-    team[side][slot]=type;
-    showTeamCustomizer(); // re-render
+    _pendingTeam[side][slot]=type;
+    showTeamCustomizer(); // re-render (will reuse _pendingTeam)
   };
   window.saveCustomTeam=async()=>{
-    await saveTeamToServer(team);
+    await saveTeamToServer(_pendingTeam);
+    _pendingTeam=null;
     document.getElementById('team-modal').remove();
     addLog?.('Team saved!');
+  };
+  window.closeTeamCustomizer=()=>{
+    _pendingTeam=null;
+    document.getElementById('team-modal').remove();
   };
 }
 
