@@ -174,6 +174,72 @@ const spriteUrl = t =>
   `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${DEFS[t].dexId}.png`;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SOUND EFFECTS  (Web Audio API — no external files)
+// ─────────────────────────────────────────────────────────────────────────────
+const SFX = (() => {
+  let ctx = null;
+  let muted = false;
+
+  function ac() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+
+  function tone(freq, type, dur, vol, delay = 0, freqEnd = null) {
+    if (muted) return;
+    try {
+      const c = ac(), t = c.currentTime + delay;
+      const osc = c.createOscillator(), g = c.createGain();
+      osc.connect(g); g.connect(c.destination);
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t);
+      if (freqEnd) osc.frequency.exponentialRampToValueAtTime(freqEnd, t + dur);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.start(t); osc.stop(t + dur + 0.02);
+    } catch(e) {}
+  }
+
+  function noise(dur, vol, delay = 0) {
+    if (muted) return;
+    try {
+      const c = ac(), t = c.currentTime + delay;
+      const sr = c.sampleRate, buf = c.createBuffer(1, sr * dur, sr);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const src = c.createBufferSource(), g = c.createGain();
+      src.buffer = buf; src.connect(g); g.connect(c.destination);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      src.start(t); src.stop(t + dur + 0.02);
+    } catch(e) {}
+  }
+
+  return {
+    toggle() { muted = !muted; return muted; },
+    isMuted() { return muted; },
+
+    select()      { tone(900, 'sine', 0.07, 0.12); tone(1200, 'sine', 0.05, 0.08, 0.04); },
+    move()        { tone(320, 'sine', 0.10, 0.10); tone(480, 'sine', 0.07, 0.07, 0.06); },
+    attack()      { noise(0.07, 0.22); tone(140, 'sawtooth', 0.14, 0.20); tone(75, 'sine', 0.18, 0.14, 0.06); },
+    death()       { tone(220, 'sawtooth', 0.28, 0.18); tone(110, 'sine', 0.38, 0.14, 0.08); noise(0.09, 0.08); },
+    hit()         { noise(0.05, 0.12); tone(200, 'sine', 0.08, 0.10); },
+    special()     { tone(660, 'sine', 0.14, 0.13); tone(990, 'sine', 0.11, 0.10, 0.08); tone(1320, 'sine', 0.09, 0.08, 0.16); },
+    rangedStun()  { tone(440, 'square', 0.05, 0.14); tone(880, 'square', 0.05, 0.10, 0.05); tone(220, 'square', 0.10, 0.09, 0.08); noise(0.06, 0.10, 0.04); },
+    freeze()      { tone(1600, 'sine', 0.10, 0.10); tone(2100, 'sine', 0.08, 0.08, 0.05); tone(1000, 'sine', 0.12, 0.06, 0.09); },
+    aoe()         { noise(0.14, 0.28); tone(95, 'sawtooth', 0.32, 0.24); tone(55, 'sine', 0.38, 0.18, 0.06); },
+    aoeStun()     { tone(380, 'square', 0.05, 0.14); tone(760, 'square', 0.05, 0.11, 0.04); tone(190, 'square', 0.12, 0.09, 0.07); noise(0.06, 0.12, 0.03); },
+    promote()     { [523, 659, 784, 1047].forEach((f, i) => tone(f, 'sine', 0.22, 0.16, i * 0.10)); },
+    bike()        { tone(180, 'sawtooth', 0.38, 0.14, 0, 520); tone(320, 'square', 0.28, 0.09, 0.12); },
+    bikeCharge()  { noise(0.18, 0.22); tone(130, 'sawtooth', 0.28, 0.22); tone(90, 'sine', 0.32, 0.18, 0.10); },
+    win()         { [[523,0],[659,0.12],[784,0.24],[1047,0.36],[784,0.50],[1047,0.60]].forEach(([f,t])=>tone(f,'sine',0.20,0.17,t)); },
+    lose()        { [[380,0],[280,0.22],[190,0.44],[140,0.68]].forEach(([f,t])=>tone(f,'sine',0.28,0.14,t)); },
+    turnTick()    { tone(440, 'sine', 0.05, 0.07); },
+  };
+})();
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GLOBAL STATE
 // ─────────────────────────────────────────────────────────────────────────────
 let G = {};
@@ -320,7 +386,10 @@ function hit(piece,r,c,amt){
   if(piece.hp<=0){
     G.board[r][c]=null;
     addLog(`${DEFS[piece.type].name} was defeated!`);
+    SFX.death();
     if(DEFS[piece.type].legendary)endGame(piece.side==='scarlet'?'Violet':'Scarlet');
+  } else {
+    SFX.hit();
   }
 }
 
@@ -329,6 +398,7 @@ function checkPromotion(r,c,p){
   if(!d.pawn||r!==d.promRow||p.promoted)return;
   p.promoted=true;p.maxHp+=2;p.hp=p.maxHp;p.dmg+=1;
   addLog(`${d.name} promoted! Max HP +2, HP restored, DMG +1!`);
+  SFX.promote();
   flashCell(r,c,'anim-promo');
   spawnEffect(getCellCenter(r,c),'promote',30);
 }
@@ -343,11 +413,13 @@ function doMove(fr,fc,tr,tc,mv){
   if(mv.type==='attack'){
     const tgt=G.board[tr][tc];
     const bigHit=p.dmg>=4;
+    SFX.attack();
     hit(tgt,tr,tc,p.dmg);
     if(G.over)return;
     if(!G.board[tr][tc]){G.board[tr][tc]=p;G.board[fr][fc]=null;checkPromotion(tr,tc,p);}
     if(bigHit)triggerShake();
   }else{
+    SFX.move();
     G.board[tr][tc]=p;G.board[fr][fc]=null;checkPromotion(tr,tc,p);
   }
 }
@@ -375,6 +447,7 @@ function doBike(fr,fc,mv){
   G.board[fr][fc]=null;G.board[land.r][land.c]=p;
   p.bike=false;p.bikeCd=d.bikeCdMax;
   addLog(`${d.name} bike charge complete!`);
+  SFX.bikeCharge();
   triggerShake();
 }
 
@@ -383,15 +456,17 @@ function doSpecial(fr,fc,tr,tc){
   const p=G.board[fr][fc],d=DEFS[p.type],spec=d.special;
   if(spec.type==='ranged'){
     const tgt=G.board[tr][tc];
-    if(tgt){addLog(`${d.name} → ${spec.name} on ${DEFS[tgt.type].name} for ${spec.dmg} dmg!`);hit(tgt,tr,tc,spec.dmg);}
+    if(tgt){SFX.special();addLog(`${d.name} → ${spec.name} on ${DEFS[tgt.type].name} for ${spec.dmg} dmg!`);hit(tgt,tr,tc,spec.dmg);}
   }else if(spec.type==='ranged_stun'){
     const tgt=G.board[tr][tc];
     if(tgt){
+      SFX.rangedStun();
       addLog(`${d.name} → ${spec.name} on ${DEFS[tgt.type].name} for ${spec.dmg} dmg!`);
       hit(tgt,tr,tc,spec.dmg);
       if(!G.over&&G.board[tr][tc]){tgt.status='stunned';tgt.stTurns=1;flashCell(tr,tc,'anim-stun');}
     }
   }else if(spec.type==='aoe_dmg'){
+    SFX.aoe();
     let n=0;
     for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
       if(!dr&&!dc)continue;
@@ -402,6 +477,7 @@ function doSpecial(fr,fc,tr,tc){
     }
     addLog(`${d.name} → ${spec.name}! Hit ${n} enemies for ${spec.dmg} dmg each!`);
   }else if(spec.type==='aoe_stun'){
+    SFX.aoeStun();
     let n=0;
     for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
       if(!dr&&!dc)continue;
@@ -415,6 +491,7 @@ function doSpecial(fr,fc,tr,tc){
   }else if(spec.type==='freeze'){
     const tgt=G.board[tr][tc];
     if(tgt){
+      SFX.freeze();
       if(spec.dmg>0){addLog(`${d.name} → ${spec.name} on ${DEFS[tgt.type].name}!`);hit(tgt,tr,tc,spec.dmg);}
       if(!G.over&&G.board[tr][tc]){tgt.status='frozen';tgt.stTurns=1;addLog(`${DEFS[tgt.type].name} is frozen!`);}
       else if(!G.over)addLog(`${d.name} → ${spec.name} on ${DEFS[tgt.type].name}!`);
@@ -1046,6 +1123,7 @@ function flashCell(r,c,cls){
 // ─────────────────────────────────────────────────────────────────────────────
 function selectPiece(r,c){
   const p=G.board[r][c];if(!p||p.side!==G.currentTurn)return;
+  SFX.select();
   if(G.mode==='ai'&&G.currentTurn==='violet')return;
   if(G.mode==='online'&&G.currentTurn!==G.mySide)return;
   G.sel={r,c};G.legalMoves=getLegalMoves(r,c,G.board);
@@ -1126,6 +1204,7 @@ function activateBike(){
   const{r,c}=G.sel,p=G.board[r][c],d=DEFS[p.type];
   if(!d.legendary||p.bikeCd>0||p.bike||p.bikeTr)return;
   p.bikeTr=true;addLog(`${d.name} begins transforming into Bike Mode!`);
+  SFX.bike();
   sendAction({type:'bike_transform',r,c});
   spawnEffect(getCellCenter(r,c),'promote',18);
   flashCell(r,c,'anim-bike');G.animPending=true;
@@ -1177,7 +1256,11 @@ function render(){
 
 function updateUI(){
   const td=document.getElementById('turn-display');if(!td)return;
-  td.textContent=`${G.currentTurn==='scarlet'?'Scarlet':'Violet'}'s Turn`;
+  if(G.mode==='online'&&G.mySide){
+    td.textContent=G.currentTurn===G.mySide?'Your Turn!':'Opponent\'s Turn';
+  }else{
+    td.textContent=`${G.currentTurn==='scarlet'?'Scarlet':'Violet'}'s Turn`;
+  }
   td.className=G.currentTurn;updateTimers();updateSidebar();
 }
 
@@ -1406,6 +1489,9 @@ function logout(){
 function endGame(winner){
   G.over=true;clearInterval(G.timerInt);
   const side=winner.toLowerCase();
+  // Play win or lose sound based on whether local player won
+  if(G.mode==='pvp'){SFX.win();}
+  else{const mySide=G.mySide||'scarlet';(side===mySide)?SFX.win():SFX.lose();}
   document.getElementById('winner-emoji').textContent=side==='scarlet'?'🔴':'🟣';
   const wt=document.getElementById('winner-text');wt.textContent=`${winner} Wins!`;wt.className=side;
 
@@ -1489,6 +1575,10 @@ document.addEventListener('DOMContentLoaded',async ()=>{
   document.getElementById('special-btn').addEventListener('click',useSpecial);
   document.getElementById('bike-btn').addEventListener('click',activateBike);
   document.getElementById('cancel-btn').addEventListener('click',cancelSelection);
+  document.getElementById('mute-btn').addEventListener('click',()=>{
+    const muted=SFX.toggle();
+    document.getElementById('mute-btn').textContent=muted?'🔇 Muted':'🔊 Sound';
+  });
   document.getElementById('playAgainBtn').addEventListener('click',showMenu);
   document.getElementById('cancelQueueBtn').addEventListener('click',()=>{
     if(socket){socket.emit('leave_queue');socket.disconnect();socket=null;}
