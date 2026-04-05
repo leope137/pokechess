@@ -123,6 +123,21 @@ function calcElo(myElo, oppElo, result) {
 
 function makeToken() { return crypto.randomBytes(24).toString('hex'); }
 
+// ─── ADMIN ───────────────────────────────────────────────────────────────────
+const ADMIN_KEY = process.env.ADMIN_KEY || null;
+
+app.post('/admin/reset_elo', async (req, res) => {
+  const { key, name, elo } = req.body || {};
+  if (!ADMIN_KEY || key !== ADMIN_KEY) return res.json({ error: 'Unauthorized.' });
+  const safeElo = Math.min(3000, Math.max(100, Math.round(elo ?? 1000)));
+  try {
+    await pool.query('UPDATE accounts SET elo=$1, wins=0, losses=0 WHERE key=$2', [safeElo, name.toLowerCase()]);
+    if (players[name]) { players[name].elo = safeElo; players[name].wins = 0; players[name].losses = 0; }
+    broadcastLeaderboard();
+    res.json({ ok: true, name, elo: safeElo });
+  } catch (e) { res.json({ error: e.message }); }
+});
+
 // ─── LEADERBOARD REST ────────────────────────────────────────────────────────
 app.get('/leaderboard', async (_req, res) => {
   try {
@@ -226,18 +241,39 @@ app.post('/save_result', async (req, res) => {
   const { token, elo, wins, losses } = req.body || {};
   const name = await dbGetSession(token);
   if (!name) return res.json({ error: 'Not authenticated.' });
-  if (!players[name]) {
-    const acc = await dbGetAccount(name.toLowerCase());
-    if (!acc) return res.json({ error: 'Player not found.' });
-    players[name] = { name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses };
-  }
 
-  players[name].elo    = Math.max(100, Math.round(elo));
-  players[name].wins   = Math.max(0, Math.round(wins));
-  players[name].losses = Math.max(0, Math.round(losses));
+  // Always fetch current stats from DB — never trust client values directly
+  let acc = await dbGetAccount(name.toLowerCase());
+  if (!acc) return res.json({ error: 'Player not found.' });
+
+  const currentElo  = acc.elo;
+  const currentWins = acc.wins;
+  const currentLoss = acc.losses;
+
+  const newElo  = Math.round(elo);
+  const newWins = Math.round(wins);
+  const newLoss = Math.round(losses);
+
+  // ELO change must be within K=32 range (max possible single-game swing)
+  const MAX_SWING = 32;
+  if (Math.abs(newElo - currentElo) > MAX_SWING) {
+    console.warn(`[cheat] ${name} tried to set ELO ${currentElo}→${newElo}`);
+    return res.json({ error: 'Invalid ELO change.' });
+  }
+  // wins/losses can only go up by 1 per game
+  if (newWins - currentWins > 1 || newLoss - currentLoss > 1) {
+    console.warn(`[cheat] ${name} tried to set W/L ${currentWins}/${currentLoss}→${newWins}/${newLoss}`);
+    return res.json({ error: 'Invalid win/loss change.' });
+  }
+  // Hard cap
+  const safeElo  = Math.min(3000, Math.max(100, newElo));
+  const safeWins = Math.max(currentWins, newWins);
+  const safeLoss = Math.max(currentLoss, newLoss);
+
+  players[name] = { name: acc.name, elo: safeElo, wins: safeWins, losses: safeLoss };
 
   try {
-    await dbUpdateStats(name, players[name].elo, players[name].wins, players[name].losses);
+    await dbUpdateStats(name, safeElo, safeWins, safeLoss);
     broadcastLeaderboard();
     res.json({ ok: true });
   } catch (e) {
