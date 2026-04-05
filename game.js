@@ -61,6 +61,27 @@ const DEFS = {
     special:{ name:'Outrage', type:'aoe_dmg', dmg:4, cd:4 } },
   hydreigon:   { name:'Hydreigon',    side:'violet',  hp:9,  dmg:5, move:'queen',        label:'HYD', dexId:635,
     special:{ name:'Hyper Voice', type:'aoe_dmg', dmg:4, cd:4 } },
+
+  // ── EXTRA UNLOCKABLES ──
+  armarouge:   { name:'Armarouge',    side:'scarlet', hp:8,  dmg:2, move:'king',         label:'ARR', dexId:968,  pawn:true, promRow:0,
+    special:{ name:'Armor Cannon', type:'ranged', dmg:4, cd:2 } },
+  annihilape:  { name:'Annihilape',   side:'scarlet', hp:8,  dmg:3, move:'knight',       label:'ANH', dexId:979,
+    special:{ name:'Rage Fist', type:'ranged', dmg:4, cd:2 } },
+  meowscarada: { name:'Meowscarada',  side:'scarlet', hp:7,  dmg:4, move:'queen',        label:'MEW', dexId:908,
+    special:{ name:'Flower Trick', type:'ranged', dmg:4, cd:1 } },
+  tinkaton:    { name:'Tinkaton',     side:'scarlet', hp:10, dmg:3, move:'rook',         label:'TIN', dexId:959,
+    special:{ name:'Gigaton Hammer', type:'ranged_stun', dmg:5, cd:3 } },
+
+  ceruledge:   { name:'Ceruledge',    side:'violet',  hp:7,  dmg:3, move:'king',         label:'CER', dexId:969,  pawn:true, promRow:7,
+    special:{ name:'Bitter Blade', type:'ranged', dmg:4, cd:2 } },
+  skeledirge:  { name:'Skeledirge',   side:'violet',  hp:9,  dmg:3, move:'leap_bishop',  label:'SKD', dexId:911,
+    special:{ name:'Torch Song', type:'ranged', dmg:4, cd:2 } },
+  pawmot:      { name:'Pawmot',       side:'violet',  hp:7,  dmg:3, move:'knight',       label:'PAW', dexId:923,
+    special:{ name:'Revival Blessing', type:'aoe_stun', cd:4 } },
+  palafin:     { name:'Palafin',      side:'violet',  hp:10, dmg:4, move:'rook',         label:'PAL', dexId:964,
+    special:{ name:'Jet Punch', type:'ranged', dmg:3, cd:1 } },
+  veluza:      { name:'Veluza',       side:'violet',  hp:7,  dmg:4, move:'queen',        label:'VEL', dexId:976,
+    special:{ name:'Fillet Away', type:'ranged', dmg:5, cd:2 } },
 };
 
 const PVAL       = { legendary:100, queen:9, leap_bishop:6, rook:6, knight:5, king:2 };
@@ -78,22 +99,36 @@ const START = [
 
 // Which pieces can be unlocked, at what ELO, and which slot they replace
 const UNLOCK_POOL = [
+  // ── PAWN ──
+  { type:'armarouge',    side:'scarlet', slot:'pawn',   eloReq:150  },
+  { type:'ceruledge',    side:'violet',  slot:'pawn',   eloReq:150  },
+  // ── QUEEN ──
   { type:'walking_wake', side:'scarlet', slot:'queen',  eloReq:250  },
   { type:'iron_valiant', side:'violet',  slot:'queen',  eloReq:250  },
-  { type:'slither_wing', side:'scarlet', slot:'rook',   eloReq:500  },
-  { type:'iron_hands',   side:'violet',  slot:'rook',   eloReq:500  },
-  { type:'gouging_fire', side:'scarlet', slot:'knight', eloReq:750  },
-  { type:'iron_thorns',  side:'violet',  slot:'knight', eloReq:750  },
-  { type:'brute_bonnet', side:'scarlet', slot:'bishop', eloReq:1000 },
-  { type:'iron_treads',  side:'violet',  slot:'bishop', eloReq:1000 },
-  { type:'great_tusk',   side:'scarlet', slot:'rook',   eloReq:1250 },
-  { type:'ting_lu',      side:'violet',  slot:'rook',   eloReq:1250 },
+  { type:'meowscarada',  side:'scarlet', slot:'queen',  eloReq:600  },
+  { type:'veluza',       side:'violet',  slot:'queen',  eloReq:600  },
   { type:'chi_yu',       side:'scarlet', slot:'queen',  eloReq:1500 },
   { type:'iron_leaves',  side:'violet',  slot:'queen',  eloReq:1500 },
-  { type:'glimmora',     side:'scarlet', slot:'bishop', eloReq:1750 },
-  { type:'chien_pao',    side:'violet',  slot:'bishop', eloReq:1750 },
   { type:'salamence',    side:'scarlet', slot:'queen',  eloReq:2000 },
   { type:'hydreigon',    side:'violet',  slot:'queen',  eloReq:2000 },
+  // ── ROOK ──
+  { type:'slither_wing', side:'scarlet', slot:'rook',   eloReq:500  },
+  { type:'iron_hands',   side:'violet',  slot:'rook',   eloReq:500  },
+  { type:'tinkaton',     side:'scarlet', slot:'rook',   eloReq:900  },
+  { type:'palafin',      side:'violet',  slot:'rook',   eloReq:900  },
+  { type:'great_tusk',   side:'scarlet', slot:'rook',   eloReq:1250 },
+  { type:'ting_lu',      side:'violet',  slot:'rook',   eloReq:1250 },
+  // ── KNIGHT ──
+  { type:'annihilape',   side:'scarlet', slot:'knight', eloReq:350  },
+  { type:'pawmot',       side:'violet',  slot:'knight', eloReq:350  },
+  { type:'gouging_fire', side:'scarlet', slot:'knight', eloReq:750  },
+  { type:'iron_thorns',  side:'violet',  slot:'knight', eloReq:750  },
+  // ── BISHOP ──
+  { type:'brute_bonnet', side:'scarlet', slot:'bishop', eloReq:1000 },
+  { type:'skeledirge',   side:'violet',  slot:'bishop', eloReq:350  },
+  { type:'glimmora',     side:'scarlet', slot:'bishop', eloReq:1750 },
+  { type:'chien_pao',    side:'violet',  slot:'bishop', eloReq:1000 },
+  { type:'iron_treads',  side:'violet',  slot:'bishop', eloReq:1750 },
 ];
 
 const DEFAULT_TEAM = {
@@ -102,8 +137,30 @@ const DEFAULT_TEAM = {
 };
 
 function buildStart(team={}) {
-  const s=Object.assign({},DEFAULT_TEAM.scarlet, team.scarlet||{});
-  const v=Object.assign({},DEFAULT_TEAM.violet,  team.violet ||{});
+  const elo=ACCOUNT?.elo||0;
+  const unlockedTypes=new Set(UNLOCK_POOL.filter(u=>elo>=u.eloReq).map(u=>u.type));
+  function safeSlot(side,slot,val){
+    const def=DEFAULT_TEAM[side][slot];
+    if(!val||val===def)return def;
+    const entry=UNLOCK_POOL.find(u=>u.type===val&&u.side===side&&u.slot===slot);
+    return (entry&&unlockedTypes.has(val))?val:def;
+  }
+  const raw_s=Object.assign({},DEFAULT_TEAM.scarlet,team.scarlet||{});
+  const raw_v=Object.assign({},DEFAULT_TEAM.violet, team.violet ||{});
+  const s={
+    queen: safeSlot('scarlet','queen', raw_s.queen),
+    rook:  safeSlot('scarlet','rook',  raw_s.rook),
+    knight:safeSlot('scarlet','knight',raw_s.knight),
+    bishop:safeSlot('scarlet','bishop',raw_s.bishop),
+    pawn:  safeSlot('scarlet','pawn',  raw_s.pawn),
+  };
+  const v={
+    queen: safeSlot('violet','queen', raw_v.queen),
+    rook:  safeSlot('violet','rook',  raw_v.rook),
+    knight:safeSlot('violet','knight',raw_v.knight),
+    bishop:safeSlot('violet','bishop',raw_v.bishop),
+    pawn:  safeSlot('violet','pawn',  raw_v.pawn),
+  };
   return [
     [v.rook,v.knight,v.bishop,v.queen,'miraidon',v.bishop,v.knight,v.rook],
     Array(8).fill(v.pawn),
@@ -646,7 +703,7 @@ function showTeamCustomizer(){
 
   function pieceCard(type,isActive,onSwap){
     const d=DEFS[type];
-    return`<div class="tc-card${isActive?' tc-active':''}" onclick="${onSwap}" title="${d.name}&#10;HP:${d.hp} DMG:${d.dmg}${d.special?'&#10;'+d.special.name+' ('+d.special.dmg+'dmg CD'+d.special.cd+')':''}">
+    return`<div class="tc-card${isActive?' tc-active':''}" onclick="${onSwap}" title="${d.name}&#10;HP:${d.hp} DMG:${d.dmg}${d.special?'&#10;'+d.special.name+(d.special.dmg?' ('+d.special.dmg+'dmg':' (')+'CD'+d.special.cd+')':''}">
       <img src="${spriteUrl(type)}" style="width:54px;height:54px;object-fit:contain">
       <div style="font-size:0.65rem;color:#d1fae5;font-weight:700;margin-top:2px">${d.name}</div>
       <div style="font-size:0.6rem;color:#4a7a4a">${d.hp}HP ${d.dmg}ATK</div>
@@ -654,10 +711,23 @@ function showTeamCustomizer(){
     </div>`;
   }
 
+  function lockedCard(type,eloReq){
+    const d=DEFS[type];
+    return`<div class="tc-card" style="opacity:0.35;cursor:not-allowed;position:relative" title="Unlocks at ${eloReq} ELO&#10;${d.name}&#10;HP:${d.hp} DMG:${d.dmg}">
+      <img src="${spriteUrl(type)}" style="width:54px;height:54px;object-fit:contain;filter:grayscale(1)">
+      <div style="font-size:0.65rem;color:#d1fae5;font-weight:700;margin-top:2px">${d.name}</div>
+      <div style="font-size:0.6rem;color:#4a7a4a">${d.hp}HP ${d.dmg}ATK</div>
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;background:rgba(0,0,0,0.45);border-radius:8px">
+        <div style="font-size:1rem">🔒</div>
+        <div style="font-size:0.55rem;color:#ffd700;font-weight:700">${eloReq} ELO</div>
+      </div>
+    </div>`;
+  }
+
   function slotRow(side,slot,defaultType){
     const cur=team[side][slot]||defaultType;
     const alts=unlocked.filter(u=>u.side===side&&u.slot===slot);
-    const nextLocked=UNLOCK_POOL.filter(u=>u.side===side&&u.slot===slot&&elo<u.eloReq).sort((a,b)=>a.eloReq-b.eloReq)[0];
+    const lockedAlts=UNLOCK_POOL.filter(u=>u.side===side&&u.slot===slot&&elo<u.eloReq).sort((a,b)=>a.eloReq-b.eloReq);
     let html=`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(34,197,94,0.1);flex-wrap:wrap">
       <div style="font-size:0.68rem;color:#4a7a4a;width:48px;text-transform:capitalize">${slot}</div>`;
     html+=pieceCard(defaultType,cur===defaultType,`teamSwap('${side}','${slot}','${defaultType}')`);
@@ -665,7 +735,10 @@ function showTeamCustomizer(){
       html+=`<div style="color:#ffd700;font-size:0.75rem">⇄</div>`;
       html+=pieceCard(alt.type,cur===alt.type,`teamSwap('${side}','${slot}','${alt.type}')`);
     });
-    if(nextLocked)html+=`<div style="color:#2a4a2a;font-size:0.62rem;margin-left:4px">🔒${nextLocked.eloReq}</div>`;
+    lockedAlts.forEach(alt=>{
+      html+=`<div style="color:#ffd700;font-size:0.75rem">⇄</div>`;
+      html+=lockedCard(alt.type,alt.eloReq);
+    });
     html+=`</div>`;
     return html;
   }
@@ -676,8 +749,8 @@ function showTeamCustomizer(){
   modal.id='team-modal';
   modal.style.cssText='position:fixed;inset:0;z-index:600;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)';
 
-  const scarletSlots=[['queen','flutter_mane'],['rook','raging_bolt'],['knight','scream_tail'],['bishop','roaring_moon']];
-  const violetSlots= [['queen','iron_crown'],  ['rook','iron_boulder'],['knight','iron_bundle'],['bishop','iron_jugulis']];
+  const scarletSlots=[['pawn','sandy_shocks'],['queen','flutter_mane'],['rook','raging_bolt'],['knight','scream_tail'],['bishop','roaring_moon']];
+  const violetSlots= [['pawn','iron_moth'],   ['queen','iron_crown'],  ['rook','iron_boulder'],['knight','iron_bundle'],['bishop','iron_jugulis']];
 
   modal.innerHTML=`
     <div style="background:#050e05;border:1px solid rgba(34,197,94,0.4);border-radius:16px;padding:32px 36px;max-width:700px;width:95%;max-height:88vh;overflow-y:auto;color:#d1fae5">
