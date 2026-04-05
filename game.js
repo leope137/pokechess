@@ -944,7 +944,7 @@ function addLog(msg){
 function renderLeaderboard(data){
   const list=document.getElementById('lb-list');if(!list)return;
   const medals=['🥇','🥈','🥉'];
-  const myName=G.playerName||getName();
+  const myName=G.playerName||ACCOUNT?.name||'';
   list.innerHTML=data.map((p,i)=>{
     const medal=i<3?medals[i]:`#${i+1}`;
     const isMe=p.name===myName;
