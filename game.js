@@ -1166,10 +1166,17 @@ document.addEventListener('DOMContentLoaded',async ()=>{
     if(socket){socket.emit('leave_queue');socket.disconnect();socket=null;}
     showMenu();
   });
-  document.getElementById('lbBtn').addEventListener('click',()=>{
+  document.getElementById('lbBtn').addEventListener('click',async()=>{
     document.getElementById('lb-modal').style.display='flex';
-    if(G.leaderboard&&G.leaderboard.length)renderLeaderboard(G.leaderboard);
-    else{document.getElementById('lb-list').innerHTML='<div style="color:#3a5a3a;text-align:center;padding:20px">Connect to the server to see live rankings.</div>';}
+    document.getElementById('lb-list').innerHTML='<div style="color:#3a5a3a;text-align:center;padding:20px">Loading…</div>';
+    try{
+      const res=await fetch('/leaderboard');
+      const data=await res.json();
+      if(data.length)renderLeaderboard(data);
+      else document.getElementById('lb-list').innerHTML='<div style="color:#3a5a3a;text-align:center;padding:20px">No players yet.</div>';
+    }catch{
+      document.getElementById('lb-list').innerHTML='<div style="color:#3a5a3a;text-align:center;padding:20px">Could not load leaderboard.</div>';
+    }
   });
   document.getElementById('lb-close-btn').addEventListener('click',()=>{document.getElementById('lb-modal').style.display='none';});
 
