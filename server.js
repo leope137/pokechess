@@ -270,10 +270,10 @@ const PORT = process.env.PORT || 3000;
 
 async function start() {
   // Debug: show which DB-related env vars exist
-  const dbVars = Object.keys(process.env).filter(k => k.includes('DATABASE') || k.includes('POSTGRES') || k.includes('PG'));
+  const dbVars = Object.keys(process.env).filter(k => k.includes('DATABASE') || k.includes('POSTGRES') || k.includes('PG') || k.includes('DB'));
   console.log('DB env vars found:', dbVars);
 
-  const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.DATABASE_PRIVATE_URL;
+  const dbUrl = process.env.PG_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.DATABASE_PRIVATE_URL;
   if (dbUrl) process.env.DATABASE_URL = dbUrl;
 
   if (process.env.DATABASE_URL) {
