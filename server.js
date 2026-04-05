@@ -33,6 +33,13 @@ async function initDB() {
       losses   INTEGER DEFAULT 0
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      name  TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
 }
 
 async function dbGetAccount(key) {
@@ -64,6 +71,23 @@ async function dbUpdateStats(name, elo, wins, losses) {
     'UPDATE accounts SET elo=$1, wins=$2, losses=$3 WHERE key=$4',
     [elo, wins, losses, name.toLowerCase()]
   );
+}
+
+async function dbSaveSession(token, name) {
+  if (!pool) { sessions[token] = name; return; }
+  sessions[token] = name; // keep in-memory cache too
+  await pool.query(
+    'INSERT INTO sessions (token, name) VALUES ($1,$2) ON CONFLICT (token) DO NOTHING',
+    [token, name]
+  );
+}
+
+async function dbGetSession(token) {
+  if (sessions[token]) return sessions[token]; // cache hit
+  if (!pool) return null;
+  const { rows } = await pool.query('SELECT name FROM sessions WHERE token=$1', [token]);
+  if (rows[0]) { sessions[token] = rows[0].name; return rows[0].name; }
+  return null;
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -130,7 +154,7 @@ app.post('/register', async (req, res) => {
 
     players[name] = { name, elo: 1000, wins: 0, losses: 0 };
     const token = makeToken();
-    sessions[token] = name;
+    await dbSaveSession(token, name);
     broadcastLeaderboard();
     res.json({ ok: true, name, elo: 1000, wins: 0, losses: 0, token });
   } catch (e) {
@@ -150,7 +174,7 @@ app.post('/login', async (req, res) => {
 
     players[acc.name] = { name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses };
     const token = makeToken();
-    sessions[token] = acc.name;
+    await dbSaveSession(token, acc.name);
     broadcastLeaderboard();
     res.json({ ok: true, name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses, token });
   } catch (e) {
@@ -161,7 +185,7 @@ app.post('/login', async (req, res) => {
 
 app.post('/verify_token', async (req, res) => {
   const { token } = req.body || {};
-  const name = sessions[token];
+  const name = await dbGetSession(token);
   if (!name) return res.json({ error: 'Session expired.' });
   // Re-fetch from DB in case server restarted
   try {
@@ -178,9 +202,13 @@ app.post('/verify_token', async (req, res) => {
 
 app.post('/save_result', async (req, res) => {
   const { token, elo, wins, losses } = req.body || {};
-  const name = sessions[token];
-  if (!name)            return res.json({ error: 'Not authenticated.' });
-  if (!players[name])   return res.json({ error: 'Player not found.' });
+  const name = await dbGetSession(token);
+  if (!name) return res.json({ error: 'Not authenticated.' });
+  if (!players[name]) {
+    const acc = await dbGetAccount(name.toLowerCase());
+    if (!acc) return res.json({ error: 'Player not found.' });
+    players[name] = { name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses };
+  }
 
   players[name].elo    = Math.max(100, Math.round(elo));
   players[name].wins   = Math.max(0, Math.round(wins));
