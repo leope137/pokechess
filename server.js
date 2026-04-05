@@ -269,13 +269,20 @@ io.on('connection', socket => {
 const PORT = process.env.PORT || 3000;
 
 async function start() {
-  await initDB();
-  // Load all accounts into memory
-  const rows = await dbGetAllAccounts();
-  rows.forEach(acc => {
-    players[acc.name] = { name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses };
-  });
-  console.log(`Loaded ${rows.length} accounts from DB`);
+  if (process.env.DATABASE_URL) {
+    try {
+      await initDB();
+      const rows = await dbGetAllAccounts();
+      rows.forEach(acc => {
+        players[acc.name] = { name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses };
+      });
+      console.log(`Loaded ${rows.length} accounts from DB`);
+    } catch (e) {
+      console.error('DB init error:', e.message);
+    }
+  } else {
+    console.warn('No DATABASE_URL set — accounts will not persist.');
+  }
   http.listen(PORT, () => console.log(`\n🟡 PokéChess running → http://localhost:${PORT}\n`));
 }
 

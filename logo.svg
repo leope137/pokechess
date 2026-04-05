@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#0a1f0a"/>
+      <stop offset="100%" stop-color="#030c03"/>
+    </radialGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffd700"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22c55e"/>
+      <stop offset="100%" stop-color="#16a34a"/>
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0f2e0f"/>
+      <stop offset="100%" stop-color="#050e05"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="goldGlow">
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Outer circle background -->
+  <circle cx="200" cy="200" r="195" fill="url(#bgGrad)" stroke="#22c55e" stroke-width="2" opacity="0.6"/>
+
+  <!-- Outer ring glow -->
+  <circle cx="200" cy="200" r="190" fill="none" stroke="#ffd700" stroke-width="1.5" opacity="0.3"/>
+
+  <!-- ── POKÉBALL RING ── -->
+  <!-- Top half (green) -->
+  <path d="M 44 200 A 156 156 0 0 1 356 200" fill="#22c55e" opacity="0.15"/>
+  <!-- Bottom half (dark) -->
+  <path d="M 44 200 A 156 156 0 0 0 356 200" fill="#1a1a2e" opacity="0.1"/>
+  <!-- Pokéball divider line -->
+  <line x1="44" y1="200" x2="356" y2="200" stroke="#ffd700" stroke-width="2.5" opacity="0.4"/>
+  <!-- Pokéball circle in center -->
+  <circle cx="200" cy="200" r="22" fill="url(#bgGrad)" stroke="#ffd700" stroke-width="3" filter="url(#goldGlow)"/>
+  <circle cx="200" cy="200" r="12" fill="#ffd700" opacity="0.9" filter="url(#glow)"/>
+  <circle cx="200" cy="200" r="6" fill="#fff" opacity="0.95"/>
+
+  <!-- ── CHESS KING ── -->
+  <!-- Crown base -->
+  <rect x="148" y="115" width="104" height="16" rx="5" fill="url(#goldGrad)" filter="url(#goldGlow)"/>
+  <!-- Crown middle bar -->
+  <rect x="158" y="95" width="84" height="12" rx="4" fill="url(#goldGrad)"/>
+  <!-- Crown spikes -->
+  <!-- Left spike -->
+  <polygon points="162,95 155,65 175,80 175,95" fill="url(#goldGrad)" filter="url(#goldGlow)"/>
+  <!-- Center spike (tallest) -->
+  <polygon points="190,95 200,55 210,95" fill="url(#goldGrad)" filter="url(#goldGlow)"/>
+  <!-- Right spike -->
+  <polygon points="225,95 245,65 238,95 225,95" fill="url(#goldGrad)" filter="url(#goldGlow)"/>
+  <!-- Cross on center spike -->
+  <rect x="196" y="60" width="8" height="24" rx="2" fill="#fff" opacity="0.9"/>
+  <rect x="190" y="66" width="20" height="8" rx="2" fill="#fff" opacity="0.9"/>
+  <!-- Crown gems -->
+  <circle cx="163" cy="108" r="5" fill="#22c55e" filter="url(#glow)"/>
+  <circle cx="200" cy="108" r="6" fill="#ffd700" filter="url(#goldGlow)"/>
+  <circle cx="237" cy="108" r="5" fill="#22c55e" filter="url(#glow)"/>
+
+  <!-- King body -->
+  <rect x="160" y="131" width="80" height="40" rx="4" fill="url(#shieldGrad)" stroke="#22c55e" stroke-width="1.5"/>
+  <!-- Body accent lines -->
+  <line x1="175" y1="131" x2="175" y2="171" stroke="#22c55e" stroke-width="1" opacity="0.4"/>
+  <line x1="225" y1="131" x2="225" y2="171" stroke="#22c55e" stroke-width="1" opacity="0.4"/>
+
+  <!-- King base / pedestal -->
+  <rect x="145" y="171" width="110" height="14" rx="4" fill="url(#goldGrad)" opacity="0.85"/>
+  <rect x="155" y="185" width="90" height="10" rx="3" fill="#ffd700" opacity="0.6"/>
+
+  <!-- ── LIGHTNING BOLT (Pikachu accent) ── -->
+  <polygon points="290,100 278,128 288,128 274,158 300,122 288,122 302,100"
+    fill="#ffd700" filter="url(#goldGlow)" opacity="0.9"/>
+  <!-- Small bolt left -->
+  <polygon points="110,105 101,127 109,127 98,150 119,128 110,128 120,105"
+    fill="#22c55e" filter="url(#glow)" opacity="0.8"/>
+
+  <!-- ── TEXT ── -->
+  <!-- POKÉCHESS main text -->
+  <text x="200" y="305" font-family="'Segoe UI', Arial Black, sans-serif" font-size="42"
+    font-weight="900" text-anchor="middle" letter-spacing="3"
+    fill="url(#goldGrad)" filter="url(#goldGlow)">POKÉ</text>
+  <text x="200" y="305" font-family="'Segoe UI', Arial Black, sans-serif" font-size="42"
+    font-weight="900" text-anchor="middle" letter-spacing="3"
+    fill="url(#goldGrad)" filter="url(#goldGlow)" dx="95">CHESS</text>
+
+  <!-- Redo as single centered text -->
+  <text x="200" y="308" font-family="'Segoe UI', Arial Black, sans-serif" font-size="40"
+    font-weight="900" text-anchor="middle" letter-spacing="4" fill="none">POKÉCHESS</text>
+
+  <!-- Gold text -->
+  <text x="200" y="308" font-family="Arial Black, sans-serif" font-size="40"
+    font-weight="900" text-anchor="middle" letter-spacing="2"
+    fill="url(#goldGrad)" filter="url(#goldGlow)">POKÉ<tspan fill="#22c55e" filter="url(#glow)">CHESS</tspan></text>
+
+  <!-- Subtitle -->
+  <text x="200" y="338" font-family="Arial, sans-serif" font-size="14"
+    font-weight="600" text-anchor="middle" letter-spacing="6"
+    fill="#22c55e" opacity="0.8">PARADOX WARS</text>
+
+  <!-- Decorative dots -->
+  <circle cx="80" cy="338" r="3" fill="#ffd700" opacity="0.5"/>
+  <circle cx="320" cy="338" r="3" fill="#ffd700" opacity="0.5"/>
+  <line x1="90" y1="338" x2="140" y2="338" stroke="#22c55e" stroke-width="1" opacity="0.4"/>
+  <line x1="260" y1="338" x2="310" y2="338" stroke="#22c55e" stroke-width="1" opacity="0.4"/>
+
+  <!-- Corner stars -->
+  <text x="55" y="80" font-size="18" fill="#ffd700" opacity="0.4">✦</text>
+  <text x="330" y="80" font-size="18" fill="#ffd700" opacity="0.4">✦</text>
+  <text x="55" y="360" font-size="18" fill="#22c55e" opacity="0.4">✦</text>
+  <text x="330" y="360" font-size="18" fill="#22c55e" opacity="0.4">✦</text>
+</svg>

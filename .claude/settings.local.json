@@ -3,7 +3,9 @@
     "allow": [
       "Bash(fuser -k 3000/tcp)",
       "Bash(node /home/leope/src/pokechess/server.js)",
-      "Bash(curl -s http://localhost:3000)"
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
