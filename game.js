@@ -6,12 +6,14 @@
 const DEFS = {
   koraidon:     { name:'Koraidon',     side:'scarlet', hp:10, dmg:4, move:'legendary',    label:'KOR', legendary:true,  bikeDmg:2, bikeSide:1, bikeCdMax:3, dexId:1007 },
   miraidon:     { name:'Miraidon',     side:'violet',  hp:10, dmg:4, move:'legendary',    label:'MIR', legendary:true,  bikeDmg:2, bikeSide:1, bikeCdMax:3, dexId:1008 },
-  flutter_mane: { name:'Flutter Mane', side:'scarlet', hp:8,  dmg:3, move:'queen',        label:'FLM', dexId:987,
-    special:{ name:'Phantom Strike', type:'ranged', dmg:4, cd:1 } },              // buffed: 3→4 dmg
-  iron_crown:   { name:'Iron Crown',   side:'violet',  hp:8,  dmg:3, move:'queen',        label:'ICR', dexId:1023,
-    special:{ name:'Phantom Strike', type:'ranged', dmg:4, cd:1 } },              // buffed
-  roaring_moon: { name:'Roaring Moon', side:'scarlet', hp:7,  dmg:3, move:'leap_bishop',  label:'ROM', dexId:1005 },
-  iron_jugulis: { name:'Iron Jugulis', side:'violet',  hp:7,  dmg:3, move:'leap_bishop',  label:'IJU', dexId:993  },
+  flutter_mane: { name:'Flutter Mane', side:'scarlet', hp:7,  dmg:3, move:'leap_bishop',  label:'FLM', dexId:987,
+    special:{ name:'Phantom Strike', type:'ranged', dmg:4, cd:1 } },
+  iron_crown:   { name:'Iron Crown',   side:'violet',  hp:7,  dmg:3, move:'leap_bishop',  label:'ICR', dexId:1023,
+    special:{ name:'Phantom Strike', type:'ranged', dmg:4, cd:1 } },
+  roaring_moon: { name:'Roaring Moon', side:'scarlet', hp:9,  dmg:4, move:'queen',        label:'ROM', dexId:1005,
+    special:{ name:'Dragon Breath', type:'ranged', dmg:4, cd:2 } },
+  iron_jugulis: { name:'Iron Jugulis', side:'violet',  hp:9,  dmg:4, move:'queen',        label:'IJU', dexId:993,
+    special:{ name:'Hyper Voice', type:'ranged', dmg:4, cd:2 } },
   scream_tail:  { name:'Scream Tail',  side:'scarlet', hp:6,  dmg:2, move:'knight',       label:'SCT', dexId:985,
     special:{ name:'Stun Aura', type:'aoe_stun', cd:3 } },
   iron_bundle:  { name:'Iron Bundle',  side:'violet',  hp:6,  dmg:2, move:'knight',       label:'IBU', dexId:991,
@@ -22,7 +24,7 @@ const DEFS = {
   iron_moth:    { name:'Iron Moth',    side:'violet',  hp:7,  dmg:2, move:'king',         label:'IMO', dexId:994,  pawn:true, promRow:7 },
 
   // ── UNLOCKABLE PIECES ──
-  walking_wake: { name:'Walking Wake', side:'scarlet', hp:8,  dmg:3, move:'queen',        label:'WAW', dexId:1009,
+  walking_wake: { name:'Walking Wake', side:'scarlet', hp:8,  dmg:3, move:'leap_bishop',  label:'WAW', dexId:1009,
     special:{ name:'Hydro Pump', type:'ranged', dmg:5, cd:2 } },
   slither_wing: { name:'Slither Wing', side:'scarlet', hp:9,  dmg:4, move:'rook',         label:'SLW', dexId:988,
     special:{ name:'Hurricane', type:'ranged_stun', dmg:3, cd:3 } },
@@ -103,14 +105,20 @@ const UNLOCK_POOL = [
   { type:'armarouge',    side:'scarlet', slot:'pawn',   eloReq:150  },
   { type:'ceruledge',    side:'violet',  slot:'pawn',   eloReq:150  },
   // ── QUEEN ──
-  { type:'walking_wake', side:'scarlet', slot:'queen',  eloReq:250  },
+  { type:'meowscarada',  side:'scarlet', slot:'queen',  eloReq:250  },
   { type:'iron_valiant', side:'violet',  slot:'queen',  eloReq:250  },
-  { type:'meowscarada',  side:'scarlet', slot:'queen',  eloReq:600  },
+  { type:'chi_yu',       side:'scarlet', slot:'queen',  eloReq:1000 },
   { type:'veluza',       side:'violet',  slot:'queen',  eloReq:600  },
-  { type:'chi_yu',       side:'scarlet', slot:'queen',  eloReq:1500 },
   { type:'iron_leaves',  side:'violet',  slot:'queen',  eloReq:1500 },
   { type:'salamence',    side:'scarlet', slot:'queen',  eloReq:2000 },
   { type:'hydreigon',    side:'violet',  slot:'queen',  eloReq:2000 },
+  // ── BISHOP ──
+  { type:'walking_wake', side:'scarlet', slot:'bishop', eloReq:250  },
+  { type:'skeledirge',   side:'violet',  slot:'bishop', eloReq:350  },
+  { type:'brute_bonnet', side:'scarlet', slot:'bishop', eloReq:750  },
+  { type:'chien_pao',    side:'violet',  slot:'bishop', eloReq:1000 },
+  { type:'glimmora',     side:'scarlet', slot:'bishop', eloReq:1500 },
+  { type:'iron_treads',  side:'violet',  slot:'bishop', eloReq:1750 },
   // ── ROOK ──
   { type:'slither_wing', side:'scarlet', slot:'rook',   eloReq:500  },
   { type:'iron_hands',   side:'violet',  slot:'rook',   eloReq:500  },
@@ -123,17 +131,11 @@ const UNLOCK_POOL = [
   { type:'pawmot',       side:'violet',  slot:'knight', eloReq:350  },
   { type:'gouging_fire', side:'scarlet', slot:'knight', eloReq:750  },
   { type:'iron_thorns',  side:'violet',  slot:'knight', eloReq:750  },
-  // ── BISHOP ──
-  { type:'brute_bonnet', side:'scarlet', slot:'bishop', eloReq:1000 },
-  { type:'skeledirge',   side:'violet',  slot:'bishop', eloReq:350  },
-  { type:'glimmora',     side:'scarlet', slot:'bishop', eloReq:1750 },
-  { type:'chien_pao',    side:'violet',  slot:'bishop', eloReq:1000 },
-  { type:'iron_treads',  side:'violet',  slot:'bishop', eloReq:1750 },
 ];
 
 const DEFAULT_TEAM = {
-  scarlet:{ queen:'flutter_mane', bishop:'roaring_moon', knight:'scream_tail', rook:'raging_bolt', pawn:'sandy_shocks' },
-  violet: { queen:'iron_crown',   bishop:'iron_jugulis', knight:'iron_bundle', rook:'iron_boulder', pawn:'iron_moth'   },
+  scarlet:{ queen:'roaring_moon', bishop:'flutter_mane', knight:'scream_tail', rook:'raging_bolt', pawn:'sandy_shocks' },
+  violet: { queen:'iron_jugulis', bishop:'iron_crown',   knight:'iron_bundle', rook:'iron_boulder', pawn:'iron_moth'   },
 };
 
 function buildStart(team={}) {
@@ -1353,8 +1355,8 @@ function showRulebook(){
         <table style="width:100%;border-collapse:collapse;font-size:0.82rem">
           <tr style="color:#ffd700"><th style="text-align:left;padding:3px 6px">Piece</th><th style="padding:3px 6px">HP/DMG</th><th style="text-align:left;padding:3px 6px">Special</th></tr>
           <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Koraidon</td><td style="padding:3px 6px;text-align:center">10/4</td><td style="padding:3px 6px">⚡ Bike Mode</td></tr>
-          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Flutter Mane (Queen)</td><td style="padding:3px 6px;text-align:center">8/3</td><td style="padding:3px 6px">Phantom Strike — 4 dmg to 1 adjacent enemy, CD1</td></tr>
-          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Roaring Moon (Leaping Bishop)</td><td style="padding:3px 6px;text-align:center">7/3</td><td style="padding:3px 6px">—</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Roaring Moon (Queen)</td><td style="padding:3px 6px;text-align:center">9/4</td><td style="padding:3px 6px">Dragon Breath — 4 dmg to 1 adjacent enemy, CD2</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Flutter Mane (Leaping Bishop)</td><td style="padding:3px 6px;text-align:center">7/3</td><td style="padding:3px 6px">Phantom Strike — 4 dmg to 1 adjacent enemy, CD1</td></tr>
           <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Scream Tail (Knight)</td><td style="padding:3px 6px;text-align:center">6/2</td><td style="padding:3px 6px">Stun Aura — stuns ALL adjacent pieces (including allies!) 1 turn, CD3</td></tr>
           <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Raging Bolt (Rook)</td><td style="padding:3px 6px;text-align:center">9/4</td><td style="padding:3px 6px">—</td></tr>
           <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Sandy Shocks (Pawn)</td><td style="padding:3px 6px;text-align:center">7/2</td><td style="padding:3px 6px">Promotes at far end: +2 max HP, +1 dmg, full heal</td></tr>
@@ -1364,8 +1366,8 @@ function showRulebook(){
         <table style="width:100%;border-collapse:collapse;font-size:0.82rem">
           <tr style="color:#ffd700"><th style="text-align:left;padding:3px 6px">Piece</th><th style="padding:3px 6px">HP/DMG</th><th style="text-align:left;padding:3px 6px">Special</th></tr>
           <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Miraidon</td><td style="padding:3px 6px;text-align:center">10/4</td><td style="padding:3px 6px">⚡ Bike Mode</td></tr>
-          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Iron Crown (Queen)</td><td style="padding:3px 6px;text-align:center">8/3</td><td style="padding:3px 6px">Phantom Strike — 4 dmg to 1 adjacent enemy, CD1</td></tr>
-          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Iron Jugulis (Leaping Bishop)</td><td style="padding:3px 6px;text-align:center">7/3</td><td style="padding:3px 6px">—</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Iron Jugulis (Queen)</td><td style="padding:3px 6px;text-align:center">9/4</td><td style="padding:3px 6px">Hyper Voice — 4 dmg to 1 adjacent enemy, CD2</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Iron Crown (Leaping Bishop)</td><td style="padding:3px 6px;text-align:center">7/3</td><td style="padding:3px 6px">Phantom Strike — 4 dmg to 1 adjacent enemy, CD1</td></tr>
           <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Iron Bundle (Knight)</td><td style="padding:3px 6px;text-align:center">6/2</td><td style="padding:3px 6px">Freeze — freezes 1 adjacent enemy for 1 turn (no dmg), CD3</td></tr>
           <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Iron Boulder (Rook)</td><td style="padding:3px 6px;text-align:center">9/4</td><td style="padding:3px 6px">—</td></tr>
           <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Iron Moth (Pawn)</td><td style="padding:3px 6px;text-align:center">7/2</td><td style="padding:3px 6px">Promotes at far end: +2 max HP, +1 dmg, full heal</td></tr>
