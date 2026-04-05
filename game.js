@@ -1100,11 +1100,20 @@ function useSpecial(){
   if(!G.sel||G.over||G.animPending)return;
   const{r,c}=G.sel,p=G.board[r][c],d=DEFS[p.type];
   if(!d.special||p.spCd>0)return;
-  if(d.special.type==='aoe_stun'){
+  if(d.special.type==='aoe_stun'||d.special.type==='aoe_dmg'){
     doSpecial(r,c,r,c);
     sendAction({type:'special',fr:r,fc:c,tr:r,tc:c});
-    if(!G.over){render();for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){if(!dr&&!dc)continue;flashCell(r+dr,c+dc,'anim-stun');spawnEffect(getCellCenter(r+dr,c+dc),'special',12);}
-      G.animPending=true;setTimeout(()=>{G.animPending=false;endTurn();},420);}
+    if(!G.over){
+      render();
+      for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+        if(!dr&&!dc)continue;
+        const nr=r+dr,nc=c+dc;
+        if(nr<0||nr>7||nc<0||nc>7)continue;
+        flashCell(nr,nc,d.special.type==='aoe_stun'?'anim-stun':'anim-hit');
+        spawnEffect(getCellCenter(nr,nc),'special',12);
+      }
+      G.animPending=true;setTimeout(()=>{G.animPending=false;endTurn();},420);
+    }
     return;
   }
   G.specMode=true;G.specTargets=getSpecialTargets(r,c,p,G.board);
@@ -1237,40 +1246,88 @@ function showRulebook(){
     modal=document.createElement('div');modal.id='rulebook-modal';
     modal.style.cssText='position:fixed;inset:0;z-index:600;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)';
     modal.innerHTML=`
-      <div style="background:#050e05;border:1px solid rgba(34,197,94,0.4);border-radius:16px;padding:36px 44px;max-width:680px;width:92%;max-height:85vh;overflow-y:auto;color:#d1fae5;line-height:1.6">
+      <div style="background:#050e05;border:1px solid rgba(34,197,94,0.4);border-radius:16px;padding:36px 44px;max-width:720px;width:92%;max-height:88vh;overflow-y:auto;color:#d1fae5;line-height:1.6">
         <h2 style="color:#ffd700;font-size:1.6rem;margin-bottom:18px;text-align:center">📖 PokéChess — Rulebook</h2>
 
         <h3 style="color:#22c55e;margin:14px 0 6px">🎯 Objective</h3>
         <p>Defeat the opponent's legendary (Koraidon or Miraidon) by reducing its HP to 0.</p>
 
         <h3 style="color:#22c55e;margin:14px 0 6px">⚔️ Combat System</h3>
-        <p>Pieces are NOT removed on contact. Every attack deals HP damage. A piece is eliminated only when its HP reaches 0. If you attack an enemy that survives, your piece stays in place.</p>
+        <p>Pieces are NOT removed on contact — every attack deals HP damage. A piece is only eliminated when its HP reaches 0. If an attacked piece survives, your piece stays where it is.</p>
 
-        <h3 style="color:#22c55e;margin:14px 0 6px">♟️ Pieces & Movement</h3>
-        <table style="width:100%;border-collapse:collapse;font-size:0.85rem">
-          <tr style="color:#ffd700"><th style="text-align:left;padding:4px 8px">Piece</th><th style="text-align:left;padding:4px 8px">Movement</th><th style="text-align:left;padding:4px 8px">HP / DMG</th><th style="text-align:left;padding:4px 8px">Special</th></tr>
-          <tr style="border-top:1px solid #1a3a1a"><td style="padding:4px 8px">Koraidon / Miraidon</td><td style="padding:4px 8px">Rook + Bishop + Knight</td><td style="padding:4px 8px">10 HP / 4 DMG</td><td style="padding:4px 8px">Bike Mode (see below)</td></tr>
-          <tr style="border-top:1px solid #1a3a1a"><td style="padding:4px 8px">Flutter Mane / Iron Crown</td><td style="padding:4px 8px">Queen (all 8 dirs)</td><td style="padding:4px 8px">8 HP / 3 DMG</td><td style="padding:4px 8px">Phantom Strike: 4 dmg, 1-tile, CD1</td></tr>
-          <tr style="border-top:1px solid #1a3a1a"><td style="padding:4px 8px">Roaring Moon / Iron Jugulis</td><td style="padding:4px 8px">Bishop + leaps over pieces*</td><td style="padding:4px 8px">7 HP / 3 DMG</td><td style="padding:4px 8px">—</td></tr>
-          <tr style="border-top:1px solid #1a3a1a"><td style="padding:4px 8px">Scream Tail</td><td style="padding:4px 8px">Knight (L-shape, leaps)</td><td style="padding:4px 8px">6 HP / 2 DMG</td><td style="padding:4px 8px">Stun Aura: stun all adjacent enemies 1 turn, CD3</td></tr>
-          <tr style="border-top:1px solid #1a3a1a"><td style="padding:4px 8px">Iron Bundle</td><td style="padding:4px 8px">Knight (L-shape, leaps)</td><td style="padding:4px 8px">6 HP / 2 DMG</td><td style="padding:4px 8px">Freeze: 1-tile enemy frozen 1 turn, CD3 (no damage)</td></tr>
-          <tr style="border-top:1px solid #1a3a1a"><td style="padding:4px 8px">Raging Bolt / Iron Boulder</td><td style="padding:4px 8px">Rook (orthogonal, any distance)</td><td style="padding:4px 8px">9 HP / 4 DMG</td><td style="padding:4px 8px">—</td></tr>
-          <tr style="border-top:1px solid #1a3a1a"><td style="padding:4px 8px">Sandy Shocks / Iron Moth</td><td style="padding:4px 8px">King (1 square any direction)</td><td style="padding:4px 8px">7 HP / 2 DMG</td><td style="padding:4px 8px">Promotion on reaching far end</td></tr>
+        <h3 style="color:#22c55e;margin:14px 0 6px">♟️ Movement Types</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:0.83rem;margin-bottom:6px">
+          <tr style="color:#ffd700"><th style="text-align:left;padding:4px 8px">Type</th><th style="text-align:left;padding:4px 8px">How it moves</th></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:4px 8px">Queen</td><td style="padding:4px 8px">Any direction, any distance (blocked by pieces in the way)</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:4px 8px">Rook</td><td style="padding:4px 8px">Orthogonal (up/down/left/right), any distance</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:4px 8px">Leaping Bishop</td><td style="padding:4px 8px">Diagonal any distance, leaps over pieces — but can only attack the first enemy per diagonal</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:4px 8px">Knight</td><td style="padding:4px 8px">L-shape (2+1 squares), always leaps over pieces</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:4px 8px">Pawn (King-step)</td><td style="padding:4px 8px">1 square in any direction — promotes when reaching the far end</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:4px 8px">Legendary</td><td style="padding:4px 8px">Rook + Bishop + Knight combined</td></tr>
         </table>
-        <p style="color:#4a7a4a;font-size:0.78rem;margin-top:6px">* Leaping Bishop: can jump over any piece for movement, but can only capture the FIRST enemy in each diagonal direction (can't capture through a jumped piece).</p>
+
+        <h3 style="color:#22c55e;margin:14px 0 6px">🔴 Scarlet Starters</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:0.82rem">
+          <tr style="color:#ffd700"><th style="text-align:left;padding:3px 6px">Piece</th><th style="padding:3px 6px">HP/DMG</th><th style="text-align:left;padding:3px 6px">Special</th></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Koraidon</td><td style="padding:3px 6px;text-align:center">10/4</td><td style="padding:3px 6px">⚡ Bike Mode</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Flutter Mane (Queen)</td><td style="padding:3px 6px;text-align:center">8/3</td><td style="padding:3px 6px">Phantom Strike — 4 dmg to 1 adjacent enemy, CD1</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Roaring Moon (Leaping Bishop)</td><td style="padding:3px 6px;text-align:center">7/3</td><td style="padding:3px 6px">—</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Scream Tail (Knight)</td><td style="padding:3px 6px;text-align:center">6/2</td><td style="padding:3px 6px">Stun Aura — stuns ALL adjacent pieces (including allies!) 1 turn, CD3</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Raging Bolt (Rook)</td><td style="padding:3px 6px;text-align:center">9/4</td><td style="padding:3px 6px">—</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Sandy Shocks (Pawn)</td><td style="padding:3px 6px;text-align:center">7/2</td><td style="padding:3px 6px">Promotes at far end: +2 max HP, +1 dmg, full heal</td></tr>
+        </table>
+
+        <h3 style="color:#22c55e;margin:14px 0 6px">🟣 Violet Starters</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:0.82rem">
+          <tr style="color:#ffd700"><th style="text-align:left;padding:3px 6px">Piece</th><th style="padding:3px 6px">HP/DMG</th><th style="text-align:left;padding:3px 6px">Special</th></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Miraidon</td><td style="padding:3px 6px;text-align:center">10/4</td><td style="padding:3px 6px">⚡ Bike Mode</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Iron Crown (Queen)</td><td style="padding:3px 6px;text-align:center">8/3</td><td style="padding:3px 6px">Phantom Strike — 4 dmg to 1 adjacent enemy, CD1</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Iron Jugulis (Leaping Bishop)</td><td style="padding:3px 6px;text-align:center">7/3</td><td style="padding:3px 6px">—</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Iron Bundle (Knight)</td><td style="padding:3px 6px;text-align:center">6/2</td><td style="padding:3px 6px">Freeze — freezes 1 adjacent enemy for 1 turn (no dmg), CD3</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Iron Boulder (Rook)</td><td style="padding:3px 6px;text-align:center">9/4</td><td style="padding:3px 6px">—</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">Iron Moth (Pawn)</td><td style="padding:3px 6px;text-align:center">7/2</td><td style="padding:3px 6px">Promotes at far end: +2 max HP, +1 dmg, full heal</td></tr>
+        </table>
+
+        <h3 style="color:#22c55e;margin:14px 0 6px">🔓 Unlockable Pieces (earn ELO to unlock)</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:0.8rem">
+          <tr style="color:#ffd700"><th style="text-align:left;padding:3px 6px">ELO</th><th style="text-align:left;padding:3px 6px">Scarlet Unlock</th><th style="text-align:left;padding:3px 6px">Violet Unlock</th></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">150</td><td style="padding:3px 6px">Armarouge (Pawn) — Armor Cannon: 4 dmg ranged, CD2</td><td style="padding:3px 6px">Ceruledge (Pawn) — Bitter Blade: 4 dmg ranged, CD2</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">250</td><td style="padding:3px 6px">Walking Wake (Queen) — Hydro Pump: 5 dmg ranged, CD2</td><td style="padding:3px 6px">Iron Valiant (Queen) — Sacred Sword: 5 dmg ranged, CD2</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">350</td><td style="padding:3px 6px">Annihilape (Knight) — Rage Fist: 4 dmg ranged, CD2</td><td style="padding:3px 6px">Pawmot (Knight) — Revival Blessing: stuns all adjacent, CD4 &nbsp;/&nbsp; Skeledirge (Bishop) — Torch Song: 4 dmg, CD2</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">500</td><td style="padding:3px 6px">Slither Wing (Rook) — Hurricane: 3 dmg + stun, CD3</td><td style="padding:3px 6px">Iron Hands (Rook) — 11 HP tank, no special</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">600</td><td style="padding:3px 6px">Meowscarada (Queen) — Flower Trick: 4 dmg, CD1</td><td style="padding:3px 6px">Veluza (Queen) — Fillet Away: 5 dmg, CD2</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">750</td><td style="padding:3px 6px">Gouging Fire (Knight) — Inferno: 2 dmg to ALL adjacent enemies, CD3</td><td style="padding:3px 6px">Iron Thorns (Knight) — Thunder Cage: 4 dmg ranged, CD2</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">900</td><td style="padding:3px 6px">Tinkaton (Rook) — Gigaton Hammer: 5 dmg + stun, CD3</td><td style="padding:3px 6px">Palafin (Rook) — Jet Punch: 3 dmg, CD1</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">1000</td><td style="padding:3px 6px">Brute Bonnet (Bishop) — Spore: freezes 1 adjacent, CD4</td><td style="padding:3px 6px">Chien-Pao (Bishop) — Ruinous Ice: 5 dmg + stun, CD3</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">1250</td><td style="padding:3px 6px">Great Tusk (Rook) — Headlong Rush: 4 dmg + stun, CD3</td><td style="padding:3px 6px">Ting-Lu (Rook) — Ruinous Shock: 3 dmg to ALL adjacent enemies, CD3</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">1500</td><td style="padding:3px 6px">Chi-Yu (Queen) — Ruinous Flame: 6 dmg ranged, CD2</td><td style="padding:3px 6px">Iron Leaves (Queen) — Psycho Cut: 5 dmg ranged, CD2</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">1750</td><td style="padding:3px 6px">Glimmora (Bishop) — Mortal Spin: 3 dmg to ALL adjacent enemies, CD2</td><td style="padding:3px 6px">Iron Treads (Bishop) — no special, 9 HP</td></tr>
+          <tr style="border-top:1px solid #1a3a1a"><td style="padding:3px 6px">2000</td><td style="padding:3px 6px">Salamence (Queen) — Outrage: 4 dmg to ALL adjacent enemies, CD4</td><td style="padding:3px 6px">Hydreigon (Queen) — Hyper Voice: 4 dmg to ALL adjacent enemies, CD4</td></tr>
+        </table>
+
+        <h3 style="color:#22c55e;margin:14px 0 6px">✨ Special Ability Types</h3>
+        <p><b style="color:#ffd700">Ranged</b> — targets 1 adjacent enemy square, deals damage.<br>
+        <b style="color:#ffd700">Ranged + Stun</b> — damages and stuns the target for 1 turn.<br>
+        <b style="color:#ffd700">AOE Damage</b> — instantly hits ALL adjacent enemies for damage. Just press ✨ Special, no targeting needed.<br>
+        <b style="color:#ffd700">AOE Stun</b> — stuns ALL adjacent pieces (including your own!) for 1 turn.<br>
+        <b style="color:#ffd700">Freeze</b> — targets 1 adjacent enemy, freezes them for 1 turn (no damage).<br>
+        All specials share a cooldown (CD) — the number of turns before it can be used again.</p>
 
         <h3 style="color:#22c55e;margin:14px 0 6px">🚲 Bike Mode (Koraidon / Miraidon)</h3>
-        <p>Spend 1 turn to transform. Next turn: charge in any cardinal direction, dealing 2 damage to all enemies in the path and 1 damage to enemies 1 tile to the side. The legendary lands at the last empty square in the path. 3-turn cooldown after use.</p>
+        <p>Spend 1 turn transforming. Next turn: charge in a cardinal direction, dealing 2 dmg to all enemies in the path and 1 dmg to enemies 1 tile to the side. Legendary lands at the last empty square. 3-turn cooldown.</p>
 
-        <h3 style="color:#22c55e;margin:14px 0 6px">⭐ Promotion (Sandy Shocks / Iron Moth)</h3>
-        <p>When a Sandy Shocks or Iron Moth reaches the opposite end of the board: HP fully restored, Max HP +2, Damage +1. Losing these does NOT end the game.</p>
+        <h3 style="color:#22c55e;margin:14px 0 6px">⭐ Promotion (Pawns)</h3>
+        <p>When any pawn reaches the opposite end of the board: full HP restore, Max HP +2, Damage +1. The game does NOT end if a pawn is eliminated.</p>
 
         <h3 style="color:#22c55e;margin:14px 0 6px">🌀 Status Effects</h3>
-        <p><b style="color:#faff00">Stunned</b> — Cannot move for 1 turn. Applied by Scream Tail's Stun Aura.<br>
-        <b style="color:#00d4ff">Frozen</b> — Cannot move for 1 turn. Applied by Iron Bundle's Freeze. Clears after their next turn.</p>
+        <p><b style="color:#faff00">Stunned</b> — Cannot move for 1 turn.<br>
+        <b style="color:#00d4ff">Frozen</b> — Cannot move for 1 turn. Clears after the frozen piece's next turn.</p>
 
         <h3 style="color:#22c55e;margin:14px 0 6px">⏱ Timer</h3>
         <p>Each player has a personal clock (Short=10min, Medium=25min, Long=45min). Running out of time = loss.</p>
+
+        <h3 style="color:#22c55e;margin:14px 0 6px">🏆 ELO & Ranking</h3>
+        <p>Win matches to earn ELO. New unlockable Pokémon appear every 150–250 ELO. Customize your team from the menu before starting a game.</p>
 
         <div style="text-align:center;margin-top:20px">
           <button onclick="document.getElementById('rulebook-modal').style.display='none'" style="background:linear-gradient(135deg,#22c55e,#fbbf24);color:#031a03;border:none;border-radius:8px;padding:10px 28px;font-weight:800;cursor:pointer;font-size:0.95rem">Got it!</button>
