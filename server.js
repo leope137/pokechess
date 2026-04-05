@@ -120,13 +120,14 @@ function makeToken() { return crypto.randomBytes(24).toString('hex'); }
 app.get('/leaderboard', async (_req, res) => {
   try {
     const rows = await dbGetAllAccounts();
+    console.log('Leaderboard rows:', rows.length);
     const board = rows
       .sort((a, b) => b.elo - a.elo)
       .slice(0, 25)
       .map(({ name, elo, wins, losses }) => ({ name, elo, wins, losses }));
     res.json(board);
-  } catch {
-    // Fall back to in-memory
+  } catch (e) {
+    console.error('Leaderboard error:', e.message);
     const board = Object.values(players)
       .sort((a, b) => b.elo - a.elo)
       .slice(0, 25)
