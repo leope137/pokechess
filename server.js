@@ -93,12 +93,22 @@ function calcElo(myElo, oppElo, result) {
 function makeToken() { return crypto.randomBytes(24).toString('hex'); }
 
 // ─── LEADERBOARD REST ────────────────────────────────────────────────────────
-app.get('/leaderboard', (_req, res) => {
-  const board = Object.values(players)
-    .sort((a, b) => b.elo - a.elo)
-    .slice(0, 25)
-    .map(({ name, elo, wins, losses }) => ({ name, elo, wins, losses }));
-  res.json(board);
+app.get('/leaderboard', async (_req, res) => {
+  try {
+    const rows = await dbGetAllAccounts();
+    const board = rows
+      .sort((a, b) => b.elo - a.elo)
+      .slice(0, 25)
+      .map(({ name, elo, wins, losses }) => ({ name, elo, wins, losses }));
+    res.json(board);
+  } catch {
+    // Fall back to in-memory
+    const board = Object.values(players)
+      .sort((a, b) => b.elo - a.elo)
+      .slice(0, 25)
+      .map(({ name, elo, wins, losses }) => ({ name, elo, wins, losses }));
+    res.json(board);
+  }
 });
 
 // ─── AUTH ENDPOINTS ──────────────────────────────────────────────────────────
@@ -149,13 +159,21 @@ app.post('/login', async (req, res) => {
   }
 });
 
-app.post('/verify_token', (req, res) => {
+app.post('/verify_token', async (req, res) => {
   const { token } = req.body || {};
   const name = sessions[token];
   if (!name) return res.json({ error: 'Session expired.' });
-  const p = players[name];
-  if (!p)    return res.json({ error: 'Account not found.' });
-  res.json({ ok: true, name: p.name, elo: p.elo, wins: p.wins, losses: p.losses });
+  // Re-fetch from DB in case server restarted
+  try {
+    const acc = await dbGetAccount(name.toLowerCase());
+    if (!acc) return res.json({ error: 'Account not found.' });
+    players[acc.name] = { name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses };
+    res.json({ ok: true, name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses });
+  } catch {
+    const p = players[name];
+    if (!p) return res.json({ error: 'Account not found.' });
+    res.json({ ok: true, name: p.name, elo: p.elo, wins: p.wins, losses: p.losses });
+  }
 });
 
 app.post('/save_result', async (req, res) => {
