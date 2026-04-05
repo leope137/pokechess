@@ -40,6 +40,8 @@ async function initDB() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  // Add team column if not exists (safe on existing DBs)
+  await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS team TEXT DEFAULT NULL`);
 }
 
 async function dbGetAccount(key) {
@@ -63,6 +65,11 @@ async function dbSaveAccount(acc) {
       name=EXCLUDED.name, salt=EXCLUDED.salt, hash=EXCLUDED.hash,
       elo=EXCLUDED.elo, wins=EXCLUDED.wins, losses=EXCLUDED.losses
   `, [acc.name.toLowerCase(), acc.name, acc.salt||null, acc.hash||null, acc.elo, acc.wins, acc.losses]);
+}
+
+async function dbSaveTeam(name, team) {
+  if (!pool) return;
+  await pool.query('UPDATE accounts SET team=$1 WHERE key=$2', [JSON.stringify(team), name.toLowerCase()]);
 }
 
 async function dbUpdateStats(name, elo, wins, losses) {
@@ -157,7 +164,7 @@ app.post('/register', async (req, res) => {
     const token = makeToken();
     await dbSaveSession(token, name);
     broadcastLeaderboard();
-    res.json({ ok: true, name, elo: 1000, wins: 0, losses: 0, token });
+    res.json({ ok: true, name, elo: 1000, wins: 0, losses: 0, token, team: {} });
   } catch (e) {
     console.error('Register error:', e.message);
     res.json({ error: 'Server error. Try again.' });
@@ -177,7 +184,8 @@ app.post('/login', async (req, res) => {
     const token = makeToken();
     await dbSaveSession(token, acc.name);
     broadcastLeaderboard();
-    res.json({ ok: true, name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses, token });
+    const team = acc.team ? JSON.parse(acc.team) : {};
+    res.json({ ok: true, name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses, token, team });
   } catch (e) {
     console.error('Login error:', e.message);
     res.json({ error: 'Server error. Try again.' });
@@ -193,11 +201,24 @@ app.post('/verify_token', async (req, res) => {
     const acc = await dbGetAccount(name.toLowerCase());
     if (!acc) return res.json({ error: 'Account not found.' });
     players[acc.name] = { name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses };
-    res.json({ ok: true, name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses });
+    const team = acc.team ? JSON.parse(acc.team) : {};
+    res.json({ ok: true, name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses, team });
   } catch {
     const p = players[name];
     if (!p) return res.json({ error: 'Account not found.' });
     res.json({ ok: true, name: p.name, elo: p.elo, wins: p.wins, losses: p.losses });
+  }
+});
+
+app.post('/save_team', async (req, res) => {
+  const { token, team } = req.body || {};
+  const name = await dbGetSession(token);
+  if (!name) return res.json({ error: 'Not authenticated.' });
+  try {
+    await dbSaveTeam(name, team);
+    res.json({ ok: true });
+  } catch (e) {
+    res.json({ error: 'Server error.' });
   }
 });
 

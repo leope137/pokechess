@@ -20,6 +20,23 @@ const DEFS = {
   iron_boulder: { name:'Iron Boulder', side:'violet',  hp:9,  dmg:4, move:'rook',         label:'IBL', dexId:1022 },
   sandy_shocks: { name:'Sandy Shocks', side:'scarlet', hp:7,  dmg:2, move:'king',         label:'SAS', dexId:989,  pawn:true, promRow:0 },
   iron_moth:    { name:'Iron Moth',    side:'violet',  hp:7,  dmg:2, move:'king',         label:'IMO', dexId:994,  pawn:true, promRow:7 },
+
+  // ── UNLOCKABLE PIECES ──
+  walking_wake: { name:'Walking Wake', side:'scarlet', hp:8,  dmg:3, move:'queen',        label:'WAW', dexId:1009,
+    special:{ name:'Hydro Pump', type:'ranged', dmg:5, cd:2 } },
+  slither_wing: { name:'Slither Wing', side:'scarlet', hp:9,  dmg:4, move:'rook',         label:'SLW', dexId:988,
+    special:{ name:'Hurricane', type:'ranged_stun', dmg:3, cd:3 } },
+  gouging_fire: { name:'Gouging Fire', side:'scarlet', hp:8,  dmg:4, move:'knight',       label:'GOF', dexId:1020,
+    special:{ name:'Inferno', type:'aoe_dmg', dmg:2, cd:3 } },
+  brute_bonnet: { name:'Brute Bonnet', side:'scarlet', hp:8,  dmg:3, move:'leap_bishop',  label:'BRB', dexId:986,
+    special:{ name:'Spore', type:'freeze', dmg:0, cd:4 } },
+
+  iron_valiant: { name:'Iron Valiant', side:'violet',  hp:8,  dmg:4, move:'queen',        label:'IVA', dexId:1006,
+    special:{ name:'Sacred Sword', type:'ranged', dmg:5, cd:2 } },
+  iron_hands:   { name:'Iron Hands',   side:'violet',  hp:11, dmg:4, move:'rook',         label:'IHA', dexId:992  },
+  iron_thorns:  { name:'Iron Thorns',  side:'violet',  hp:8,  dmg:3, move:'knight',       label:'ITH', dexId:995,
+    special:{ name:'Thunder Cage', type:'ranged', dmg:4, cd:2 } },
+  iron_treads:  { name:'Iron Treads',  side:'violet',  hp:9,  dmg:4, move:'leap_bishop',  label:'ITR', dexId:990  },
 };
 
 const PVAL       = { legendary:100, queen:9, leap_bishop:6, rook:6, knight:5, king:2 };
@@ -34,6 +51,35 @@ const START = [
   Array(8).fill('sandy_shocks'),
   ['raging_bolt','scream_tail','roaring_moon','flutter_mane','koraidon','roaring_moon','scream_tail','raging_bolt'],
 ];
+
+// Which pieces can be unlocked, at what ELO, and which slot they replace
+const UNLOCK_POOL = [
+  { type:'walking_wake', side:'scarlet', slot:'queen',  eloReq:250 },
+  { type:'iron_valiant', side:'violet',  slot:'queen',  eloReq:250 },
+  { type:'slither_wing', side:'scarlet', slot:'rook',   eloReq:500 },
+  { type:'iron_hands',   side:'violet',  slot:'rook',   eloReq:500 },
+  { type:'gouging_fire', side:'scarlet', slot:'knight', eloReq:750 },
+  { type:'iron_thorns',  side:'violet',  slot:'knight', eloReq:750 },
+  { type:'brute_bonnet', side:'scarlet', slot:'bishop', eloReq:1000 },
+  { type:'iron_treads',  side:'violet',  slot:'bishop', eloReq:1000 },
+];
+
+const DEFAULT_TEAM = {
+  scarlet:{ queen:'flutter_mane', bishop:'roaring_moon', knight:'scream_tail', rook:'raging_bolt', pawn:'sandy_shocks' },
+  violet: { queen:'iron_crown',   bishop:'iron_jugulis', knight:'iron_bundle', rook:'iron_boulder', pawn:'iron_moth'   },
+};
+
+function buildStart(team={}) {
+  const s=Object.assign({},DEFAULT_TEAM.scarlet, team.scarlet||{});
+  const v=Object.assign({},DEFAULT_TEAM.violet,  team.violet ||{});
+  return [
+    [v.rook,v.knight,v.bishop,v.queen,'miraidon',v.bishop,v.knight,v.rook],
+    Array(8).fill(v.pawn),
+    null,null,null,null,
+    Array(8).fill(s.pawn),
+    [s.rook,s.knight,s.bishop,s.queen,'koraidon',s.bishop,s.knight,s.rook],
+  ];
+}
 
 const spriteUrl = t =>
   `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${DEFS[t].dexId}.png`;
@@ -54,9 +100,9 @@ const mkPiece = t => {
            spCd:0, status:null, stTurns:0, bike:false, bikeTr:false, bikeCd:0 };
 };
 
-function initBoard() {
+function initBoard(team={}) {
   const b = Array.from({length:8},()=>Array(8).fill(null));
-  START.forEach((row,r)=>{ if(row) row.forEach((t,c)=>{ b[r][c]=mkPiece(t); }); });
+  buildStart(team).forEach((row,r)=>{ if(row) row.forEach((t,c)=>{ b[r][c]=mkPiece(t); }); });
   return b;
 }
 
@@ -161,7 +207,7 @@ function getSpecialTargets(r,c,p,b){
   const d=DEFS[p.type];
   if(!d.special||p.spCd>0)return[];
   const tgts=[];
-  if(d.special.type==='ranged'||d.special.type==='freeze'){
+  if(d.special.type==='ranged'||d.special.type==='freeze'||d.special.type==='ranged_stun'){
     for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
       if(!dr&&!dc)continue;
       const nr=r+dr,nc=c+dc;
@@ -169,7 +215,7 @@ function getSpecialTargets(r,c,p,b){
       const t=b[nr][nc];
       if(t&&t.side!==p.side)tgts.push({row:nr,col:nc,type:'special'});
     }
-  }else if(d.special.type==='aoe_stun'){
+  }else if(d.special.type==='aoe_stun'||d.special.type==='aoe_dmg'){
     tgts.push({row:r,col:c,type:'special_self'});
   }
   return tgts;
@@ -248,6 +294,23 @@ function doSpecial(fr,fc,tr,tc){
   if(spec.type==='ranged'){
     const tgt=G.board[tr][tc];
     if(tgt){addLog(`${d.name} → ${spec.name} on ${DEFS[tgt.type].name} for ${spec.dmg} dmg!`);hit(tgt,tr,tc,spec.dmg);}
+  }else if(spec.type==='ranged_stun'){
+    const tgt=G.board[tr][tc];
+    if(tgt){
+      addLog(`${d.name} → ${spec.name} on ${DEFS[tgt.type].name} for ${spec.dmg} dmg!`);
+      hit(tgt,tr,tc,spec.dmg);
+      if(!G.over&&G.board[tr][tc]){tgt.status='stunned';tgt.stTurns=1;flashCell(tr,tc,'anim-stun');}
+    }
+  }else if(spec.type==='aoe_dmg'){
+    let n=0;
+    for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+      if(!dr&&!dc)continue;
+      const nr=fr+dr,nc=fc+dc;
+      if(!OB(nr,nc))continue;
+      const t=G.board[nr][nc];
+      if(t&&t.side!==p.side){n++;hit(t,nr,nc,spec.dmg);if(G.over)return;}
+    }
+    addLog(`${d.name} → ${spec.name}! Hit ${n} enemies for ${spec.dmg} dmg each!`);
   }else if(spec.type==='aoe_stun'){
     let n=0;
     for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
@@ -255,9 +318,10 @@ function doSpecial(fr,fc,tr,tc){
       const nr=fr+dr,nc=fc+dc;
       if(!OB(nr,nc))continue;
       const t=G.board[nr][nc];
-      if(t&&t.side!==p.side){t.status='stunned';t.stTurns=1;n++;flashCell(nr,nc,'anim-stun');}
+      // Stuns ALL adjacent pieces — including own!
+      if(t){t.status='stunned';t.stTurns=1;n++;flashCell(nr,nc,'anim-stun');}
     }
-    addLog(`${d.name} → ${spec.name}! ${n} enem${n===1?'y':'ies'} stunned!`);
+    addLog(`${d.name} → ${spec.name}! ${n} piece${n===1?'':'s'} stunned (including allies)!`);
   }else if(spec.type==='freeze'){
     const tgt=G.board[tr][tc];
     if(tgt){
@@ -338,13 +402,19 @@ function simSpecial(b,fr,fc,tr,tc){
   const nb=cloneBoard(b),p=nb[fr][fc];
   if(!p)return nb;
   const d=DEFS[p.type],spec=d.special;if(!spec)return nb;
-  if((spec.type==='ranged'||spec.type==='freeze')&&nb[tr][tc]){
+  if((spec.type==='ranged'||spec.type==='freeze'||spec.type==='ranged_stun')&&nb[tr][tc]){
     if(spec.dmg>0){nb[tr][tc].hp-=spec.dmg;if(nb[tr][tc].hp<=0)nb[tr][tc]=null;}
     if(spec.type==='freeze'&&nb[tr][tc]){nb[tr][tc].status='frozen';nb[tr][tc].stTurns=1;}
+    if(spec.type==='ranged_stun'&&nb[tr][tc]){nb[tr][tc].status='stunned';nb[tr][tc].stTurns=1;}
+  }else if(spec.type==='aoe_dmg'){
+    for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+      if(!dr&&!dc)continue;const nr=fr+dr,nc=fc+dc;
+      if(nr>=0&&nr<8&&nc>=0&&nc<8&&nb[nr][nc]&&nb[nr][nc].side!==p.side){nb[nr][nc].hp-=spec.dmg;if(nb[nr][nc].hp<=0)nb[nr][nc]=null;}
+    }
   }else if(spec.type==='aoe_stun'){
     for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
       if(!dr&&!dc)continue;const nr=fr+dr,nc=fc+dc;
-      if(nr>=0&&nr<8&&nc>=0&&nc<8&&nb[nr][nc]&&nb[nr][nc].side!==p.side){nb[nr][nc].status='stunned';nb[nr][nc].stTurns=1;}
+      if(nr>=0&&nr<8&&nc>=0&&nc<8&&nb[nr][nc]){nb[nr][nc].status='stunned';nb[nr][nc].stTurns=1;}
     }
   }
   if(nb[fr][fc])nb[fr][fc].spCd=spec.cd;
@@ -489,7 +559,7 @@ async function doAuth(){
     const data=await res.json();
     if(data.error){errEl.textContent=data.error;errEl.style.display='block';return;}
     // Success
-    ACCOUNT={name:data.name,elo:data.elo,wins:data.wins,losses:data.losses,token:data.token};
+    ACCOUNT={name:data.name,elo:data.elo,wins:data.wins,losses:data.losses,token:data.token,team:data.team||{}};
     localStorage.setItem(TOKEN_KEY,data.token);
     enterMenu();
   }catch(e){errEl.textContent='Server unreachable. Is node server.js running?';errEl.style.display='block';}
@@ -502,7 +572,7 @@ async function tryAutoLogin(){
   try{
     const res=await fetch('/verify_token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
     const data=await res.json();
-    if(data.ok){ACCOUNT={name:data.name,elo:data.elo,wins:data.wins,losses:data.losses,token};return true;}
+    if(data.ok){ACCOUNT={name:data.name,elo:data.elo,wins:data.wins,losses:data.losses,token,team:data.team||{}};return true;}
   }catch{}
   localStorage.removeItem(TOKEN_KEY);
   return false;
@@ -517,6 +587,93 @@ async function saveResultToServer(elo,wins,losses){
     const d=await r.json();
     console.log('[ELO] server response=',d);
   }catch(e){console.log('[ELO] fetch error',e);}
+}
+
+async function saveTeamToServer(team){
+  if(!ACCOUNT?.token)return;
+  try{
+    await fetch('/save_team',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({token:ACCOUNT.token,team})});
+    if(ACCOUNT)ACCOUNT.team=team;
+  }catch{}
+}
+
+function showTeamCustomizer(){
+  const elo=ACCOUNT?.elo||0;
+  const team=JSON.parse(JSON.stringify(ACCOUNT?.team||{}));
+  if(!team.scarlet)team.scarlet={};
+  if(!team.violet)team.violet={};
+
+  const unlocked=UNLOCK_POOL.filter(u=>elo>=u.eloReq);
+  const nextUnlock=UNLOCK_POOL.filter(u=>elo<u.eloReq).sort((a,b)=>a.eloReq-b.eloReq)[0];
+
+  function pieceCard(type,isActive,onSwap){
+    const d=DEFS[type];
+    return`<div class="tc-card${isActive?' tc-active':''}" onclick="${onSwap}" title="${d.name}&#10;HP:${d.hp} DMG:${d.dmg}${d.special?'&#10;'+d.special.name+' ('+d.special.dmg+'dmg CD'+d.special.cd+')':''}">
+      <img src="${spriteUrl(type)}" style="width:54px;height:54px;object-fit:contain">
+      <div style="font-size:0.65rem;color:#d1fae5;font-weight:700;margin-top:2px">${d.name}</div>
+      <div style="font-size:0.6rem;color:#4a7a4a">${d.hp}HP ${d.dmg}ATK</div>
+      ${d.special?`<div style="font-size:0.55rem;color:#a855f7">${d.special.name}</div>`:''}
+    </div>`;
+  }
+
+  function slotRow(side,slot,defaultType){
+    const cur=team[side][slot]||defaultType;
+    const alt=unlocked.find(u=>u.side===side&&u.slot===slot);
+    const locked=UNLOCK_POOL.find(u=>u.side===side&&u.slot===slot&&elo<u.eloReq);
+    let html=`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(34,197,94,0.1)">
+      <div style="font-size:0.72rem;color:#4a7a4a;width:52px;text-transform:capitalize">${slot}</div>`;
+    html+=pieceCard(defaultType,cur===defaultType,`teamSwap('${side}','${slot}','${defaultType}')`);
+    if(alt){
+      html+=`<div style="color:#ffd700;font-size:0.8rem">⇄</div>`;
+      html+=pieceCard(alt.type,cur===alt.type,`teamSwap('${side}','${slot}','${alt.type}')`);
+    }else if(locked){
+      html+=`<div style="color:#2a4a2a;font-size:0.72rem;margin-left:8px">🔒 Unlock at ${locked.eloReq} ELO</div>`;
+    }
+    html+=`</div>`;
+    return html;
+  }
+
+  let modal=document.getElementById('team-modal');
+  if(modal)modal.remove();
+  modal=document.createElement('div');
+  modal.id='team-modal';
+  modal.style.cssText='position:fixed;inset:0;z-index:600;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)';
+
+  const scarletSlots=[['queen','flutter_mane'],['rook','raging_bolt'],['knight','scream_tail'],['bishop','roaring_moon']];
+  const violetSlots= [['queen','iron_crown'],  ['rook','iron_boulder'],['knight','iron_bundle'],['bishop','iron_jugulis']];
+
+  modal.innerHTML=`
+    <div style="background:#050e05;border:1px solid rgba(34,197,94,0.4);border-radius:16px;padding:32px 36px;max-width:700px;width:95%;max-height:88vh;overflow-y:auto;color:#d1fae5">
+      <h2 style="color:#ffd700;text-align:center;margin-bottom:4px">⚙️ Customize Team</h2>
+      <p style="color:#3a6a3a;font-size:0.75rem;text-align:center;margin-bottom:18px">Your ELO: <b style="color:#22c55e">${elo}</b>${nextUnlock?` · Next unlock at <b style="color:#ffd700">${nextUnlock.eloReq}</b>`:' · All unlocked!'}</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+        <div>
+          <div style="color:#e63946;font-weight:800;margin-bottom:8px">🔴 Scarlet Team</div>
+          ${scarletSlots.map(([slot,def])=>slotRow('scarlet',slot,def)).join('')}
+        </div>
+        <div>
+          <div style="color:#9b8dff;font-weight:800;margin-bottom:8px">🟣 Violet Team</div>
+          ${violetSlots.map(([slot,def])=>slotRow('violet',slot,def)).join('')}
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:22px;display:flex;gap:12px;justify-content:center">
+        <button onclick="saveCustomTeam()" style="background:linear-gradient(135deg,#22c55e,#fbbf24);color:#031a03;border:none;border-radius:8px;padding:10px 28px;font-weight:800;cursor:pointer">💾 Save Team</button>
+        <button onclick="document.getElementById('team-modal').remove()" style="background:rgba(34,197,94,0.08);color:#4ade80;border:1px solid rgba(34,197,94,0.3);border-radius:8px;padding:10px 22px;font-weight:700;cursor:pointer">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  // expose helpers to onclick
+  window.teamSwap=(side,slot,type)=>{
+    team[side][slot]=type;
+    showTeamCustomizer(); // re-render
+  };
+  window.saveCustomTeam=async()=>{
+    await saveTeamToServer(team);
+    document.getElementById('team-modal').remove();
+    addLog?.('Team saved!');
+  };
 }
 
 function enterMenu(){
@@ -1021,7 +1178,7 @@ function startGame(){
   clearInterval(G.timerInt);
 
   G={
-    board:initBoard(),currentTurn:'scarlet',
+    board:initBoard(ACCOUNT?.team||{}),currentTurn:'scarlet',
     sel:null,legalMoves:[],specMode:false,specTargets:[],
     mode,difficulty:diff,mySide:null,roomId:null,
     playerName:rawName,opponentName:null,
@@ -1185,6 +1342,12 @@ document.addEventListener('DOMContentLoaded',async ()=>{
   rulesBtn.textContent='📖 Rules';rulesBtn.className='btn-secondary';
   rulesBtn.addEventListener('click',showRulebook);
   document.querySelector('.menu-options').appendChild(rulesBtn);
+
+  // ── Team button ──
+  const teamBtn=document.createElement('button');
+  teamBtn.textContent='⚙️ My Team';teamBtn.className='btn-secondary';
+  teamBtn.addEventListener('click',showTeamCustomizer);
+  document.querySelector('.menu-options').appendChild(teamBtn);
 
   // ── Keyboard ──
   document.addEventListener('keydown',e=>{if(e.key==='Escape')cancelSelection();});
