@@ -14,12 +14,14 @@ app.use(express.static(path.join(__dirname)));
 app.use(express.json());
 
 // ─── DATABASE ─────────────────────────────────────────────────────────────────
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('railway.internal') ? false : { rejectUnauthorized: false },
-});
+const PG_URL = process.env.PG_URL || process.env.POSTGRES_URL;
+const pool = PG_URL ? new Pool({
+  connectionString: PG_URL,
+  ssl: PG_URL.includes('railway.internal') ? false : { rejectUnauthorized: false },
+}) : null;
 
 async function initDB() {
+  if (!pool) return;
   await pool.query(`
     CREATE TABLE IF NOT EXISTS accounts (
       key      TEXT PRIMARY KEY,
@@ -34,16 +36,19 @@ async function initDB() {
 }
 
 async function dbGetAccount(key) {
+  if (!pool) return null;
   const { rows } = await pool.query('SELECT * FROM accounts WHERE key=$1', [key]);
   return rows[0] || null;
 }
 
 async function dbGetAllAccounts() {
+  if (!pool) return [];
   const { rows } = await pool.query('SELECT * FROM accounts');
   return rows;
 }
 
 async function dbSaveAccount(acc) {
+  if (!pool) return;
   await pool.query(`
     INSERT INTO accounts (key, name, salt, hash, elo, wins, losses)
     VALUES ($1,$2,$3,$4,$5,$6,$7)
@@ -54,6 +59,7 @@ async function dbSaveAccount(acc) {
 }
 
 async function dbUpdateStats(name, elo, wins, losses) {
+  if (!pool) return;
   await pool.query(
     'UPDATE accounts SET elo=$1, wins=$2, losses=$3 WHERE key=$4',
     [elo, wins, losses, name.toLowerCase()]
@@ -270,13 +276,9 @@ const PORT = process.env.PORT || 3000;
 
 async function start() {
   // Debug: show which DB-related env vars exist
-  const dbVars = Object.keys(process.env).filter(k => k.includes('DATABASE') || k.includes('POSTGRES') || k.includes('PG') || k.includes('DB'));
-  console.log('DB env vars found:', dbVars);
+  console.log('DB connected:', !!PG_URL);
 
-  const dbUrl = process.env.PG_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.DATABASE_PRIVATE_URL;
-  if (dbUrl) process.env.DATABASE_URL = dbUrl;
-
-  if (process.env.DATABASE_URL) {
+  if (PG_URL && pool) {
     try {
       await initDB();
       const rows = await dbGetAllAccounts();
@@ -288,7 +290,7 @@ async function start() {
       console.error('DB init error:', e.message);
     }
   } else {
-    console.warn('No DATABASE_URL set — accounts will not persist.');
+    console.warn('No PG_URL set — accounts will not persist.');
   }
   http.listen(PORT, () => console.log(`\n🟡 PokéChess running → http://localhost:${PORT}\n`));
 }
