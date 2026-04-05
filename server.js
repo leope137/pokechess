@@ -3,17 +3,8 @@ const express  = require('express');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const path   = require('path');
-const fs     = require('fs');
 const crypto = require('crypto');
-const { OAuth2Client } = require('google-auth-library');
-
-const CONFIG = (() => {
-  try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8')); }
-  catch { return {}; }
-})();
-const googleClient = CONFIG.googleClientId && !CONFIG.googleClientId.startsWith('YOUR_')
-  ? new OAuth2Client(CONFIG.googleClientId)
-  : null;
+const { Pool } = require('pg');
 
 const app  = express();
 const http = createServer(app);
@@ -22,34 +13,63 @@ const io   = new Server(http, { cors: { origin: '*' } });
 app.use(express.static(path.join(__dirname)));
 app.use(express.json());
 
-const ACCOUNTS_FILE = process.env.DATA_DIR
-  ? path.join(process.env.DATA_DIR, 'accounts.json')
-  : path.join(__dirname, 'accounts.json');
+// ─── DATABASE ─────────────────────────────────────────────────────────────────
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('railway.internal') ? false : { rejectUnauthorized: false },
+});
 
-// ─── ACCOUNTS (file-backed) ───────────────────────────────────────────────────
-function loadAccounts() {
-  try { return JSON.parse(fs.readFileSync(ACCOUNTS_FILE, 'utf8')); }
-  catch { return {}; }
+async function initDB() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS accounts (
+      key      TEXT PRIMARY KEY,
+      name     TEXT NOT NULL,
+      salt     TEXT,
+      hash     TEXT,
+      elo      INTEGER DEFAULT 1000,
+      wins     INTEGER DEFAULT 0,
+      losses   INTEGER DEFAULT 0
+    )
+  `);
 }
-function saveAccounts(accs) {
-  fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accs, null, 2));
+
+async function dbGetAccount(key) {
+  const { rows } = await pool.query('SELECT * FROM accounts WHERE key=$1', [key]);
+  return rows[0] || null;
 }
+
+async function dbGetAllAccounts() {
+  const { rows } = await pool.query('SELECT * FROM accounts');
+  return rows;
+}
+
+async function dbSaveAccount(acc) {
+  await pool.query(`
+    INSERT INTO accounts (key, name, salt, hash, elo, wins, losses)
+    VALUES ($1,$2,$3,$4,$5,$6,$7)
+    ON CONFLICT (key) DO UPDATE SET
+      name=EXCLUDED.name, salt=EXCLUDED.salt, hash=EXCLUDED.hash,
+      elo=EXCLUDED.elo, wins=EXCLUDED.wins, losses=EXCLUDED.losses
+  `, [acc.name.toLowerCase(), acc.name, acc.salt||null, acc.hash||null, acc.elo, acc.wins, acc.losses]);
+}
+
+async function dbUpdateStats(name, elo, wins, losses) {
+  await pool.query(
+    'UPDATE accounts SET elo=$1, wins=$2, losses=$3 WHERE key=$4',
+    [elo, wins, losses, name.toLowerCase()]
+  );
+}
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
 function hashPw(password, salt) {
   return crypto.scryptSync(password, salt, 32).toString('hex');
 }
 
-// ─── IN-MEMORY STATE ─────────────────────────────────────────────────────────
-const sessions = {};   // token → name
+const sessions = {};
 const queue    = [];
 const rooms    = {};
+const players  = {};
 
-// Load players from persisted accounts
-const players = {};
-Object.values(loadAccounts()).forEach(acc => {
-  players[acc.name] = { name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses };
-});
-
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
 function broadcastLeaderboard() {
   const board = Object.values(players)
     .sort((a, b) => b.elo - a.elo)
@@ -64,18 +84,6 @@ function calcElo(myElo, oppElo, result) {
   return Math.round(myElo + K * (result - exp));
 }
 
-function persistPlayer(name) {
-  const p = players[name]; if (!p) return;
-  const accs = loadAccounts();
-  const key  = name.toLowerCase();
-  if (accs[key]) {
-    accs[key].elo    = p.elo;
-    accs[key].wins   = p.wins;
-    accs[key].losses = p.losses;
-    saveAccounts(accs);
-  }
-}
-
 function makeToken() { return crypto.randomBytes(24).toString('hex'); }
 
 // ─── LEADERBOARD REST ────────────────────────────────────────────────────────
@@ -87,51 +95,52 @@ app.get('/leaderboard', (_req, res) => {
   res.json(board);
 });
 
-// ─── CLIENT CONFIG (exposes non-secret config to frontend) ───────────────────
-app.get('/client-config.js', (_req, res) => {
-  const id = (CONFIG.googleClientId && !CONFIG.googleClientId.startsWith('YOUR_'))
-    ? CONFIG.googleClientId : '';
-  res.type('application/javascript');
-  res.send(`window.GOOGLE_CLIENT_ID = ${JSON.stringify(id)};`);
-});
-
 // ─── AUTH ENDPOINTS ──────────────────────────────────────────────────────────
-app.post('/register', (req, res) => {
+app.post('/register', async (req, res) => {
   const { name, password } = req.body || {};
   if (!name || !password)         return res.json({ error: 'Name and password required.' });
   if (name.length < 2 || name.length > 16) return res.json({ error: 'Name must be 2–16 characters.' });
   if (!/^[a-zA-Z0-9_]+$/.test(name))       return res.json({ error: 'Letters, numbers, underscores only.' });
   if (password.length < 4)        return res.json({ error: 'Password must be at least 4 characters.' });
 
-  const accs = loadAccounts();
-  if (accs[name.toLowerCase()])   return res.json({ error: 'Username already taken.' });
+  try {
+    const existing = await dbGetAccount(name.toLowerCase());
+    if (existing) return res.json({ error: 'Username already taken.' });
 
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = hashPw(password, salt);
-  accs[name.toLowerCase()] = { name, salt, hash, elo: 1000, wins: 0, losses: 0 };
-  saveAccounts(accs);
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = hashPw(password, salt);
+    const acc  = { name, salt, hash, elo: 1000, wins: 0, losses: 0 };
+    await dbSaveAccount(acc);
 
-  players[name] = { name, elo: 1000, wins: 0, losses: 0 };
-  const token = makeToken();
-  sessions[token] = name;
-  broadcastLeaderboard();
-  res.json({ ok: true, name, elo: 1000, wins: 0, losses: 0, token });
+    players[name] = { name, elo: 1000, wins: 0, losses: 0 };
+    const token = makeToken();
+    sessions[token] = name;
+    broadcastLeaderboard();
+    res.json({ ok: true, name, elo: 1000, wins: 0, losses: 0, token });
+  } catch (e) {
+    console.error('Register error:', e.message);
+    res.json({ error: 'Server error. Try again.' });
+  }
 });
 
-app.post('/login', (req, res) => {
+app.post('/login', async (req, res) => {
   const { name, password } = req.body || {};
   if (!name || !password) return res.json({ error: 'Name and password required.' });
 
-  const accs = loadAccounts();
-  const acc  = accs[name.toLowerCase()];
-  if (!acc)                         return res.json({ error: 'Account not found.' });
-  if (hashPw(password, acc.salt) !== acc.hash) return res.json({ error: 'Incorrect password.' });
+  try {
+    const acc = await dbGetAccount(name.toLowerCase());
+    if (!acc)                                    return res.json({ error: 'Account not found.' });
+    if (hashPw(password, acc.salt) !== acc.hash) return res.json({ error: 'Incorrect password.' });
 
-  players[acc.name] = { name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses };
-  const token = makeToken();
-  sessions[token] = acc.name;
-  broadcastLeaderboard();
-  res.json({ ok: true, name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses, token });
+    players[acc.name] = { name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses };
+    const token = makeToken();
+    sessions[token] = acc.name;
+    broadcastLeaderboard();
+    res.json({ ok: true, name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses, token });
+  } catch (e) {
+    console.error('Login error:', e.message);
+    res.json({ error: 'Server error. Try again.' });
+  }
 });
 
 app.post('/verify_token', (req, res) => {
@@ -143,55 +152,24 @@ app.post('/verify_token', (req, res) => {
   res.json({ ok: true, name: p.name, elo: p.elo, wins: p.wins, losses: p.losses });
 });
 
-// Google OAuth
-app.post('/auth/google', async (req, res) => {
-  if (!googleClient) return res.json({ error: 'Google login not configured.' });
-  const { credential } = req.body || {};
-  if (!credential) return res.json({ error: 'No credential provided.' });
-  try {
-    const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: CONFIG.googleClientId });
-    const payload = ticket.getPayload();
-    const googleId = payload.sub;
-
-    const accs = loadAccounts();
-    // Find existing account tied to this Google ID
-    let acc = Object.values(accs).find(a => a.googleId === googleId);
-    if (!acc) {
-      // New Google user — derive a username from their Google display name
-      let base = (payload.name || 'Trainer').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 14) || 'Trainer';
-      if (!base) base = 'Trainer';
-      let name = base, suffix = 2;
-      while (accs[name.toLowerCase()]) name = base + suffix++;
-      acc = { name, googleId, elo: 1000, wins: 0, losses: 0 };
-      accs[name.toLowerCase()] = acc;
-      saveAccounts(accs);
-      players[name] = { name, elo: 1000, wins: 0, losses: 0 };
-    } else {
-      players[acc.name] = { name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses };
-    }
-
-    const token = makeToken();
-    sessions[token] = acc.name;
-    broadcastLeaderboard();
-    res.json({ ok: true, name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses, token });
-  } catch (e) {
-    console.error('Google auth error:', e.message);
-    res.json({ error: 'Google sign-in failed. Try again.' });
-  }
-});
-
-// Save ELO for AI / local PvP games
-app.post('/save_result', (req, res) => {
+app.post('/save_result', async (req, res) => {
   const { token, elo, wins, losses } = req.body || {};
   const name = sessions[token];
-  if (!name) return res.json({ error: 'Not authenticated.' });
-  if (!players[name]) return res.json({ error: 'Player not found.' });
+  if (!name)            return res.json({ error: 'Not authenticated.' });
+  if (!players[name])   return res.json({ error: 'Player not found.' });
+
   players[name].elo    = Math.max(100, Math.round(elo));
   players[name].wins   = Math.max(0, Math.round(wins));
   players[name].losses = Math.max(0, Math.round(losses));
-  persistPlayer(name);
-  broadcastLeaderboard();
-  res.json({ ok: true });
+
+  try {
+    await dbUpdateStats(name, players[name].elo, players[name].wins, players[name].losses);
+    broadcastLeaderboard();
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Save result error:', e.message);
+    res.json({ error: 'Server error.' });
+  }
 });
 
 // ─── SOCKET LOGIC ────────────────────────────────────────────────────────────
@@ -247,7 +225,7 @@ io.on('connection', socket => {
     socket.to(roomId).emit('opponent_action', action);
   });
 
-  socket.on('game_over', ({ roomId, winnerName, loserName }) => {
+  socket.on('game_over', async ({ roomId, winnerName, loserName }) => {
     const room = rooms[roomId]; if (!room) return;
     const winner = players[winnerName], loser = players[loserName];
     if (winner && loser) {
@@ -259,8 +237,10 @@ io.on('connection', socket => {
       winner.elo = newWinnerElo; winner.wins  += 1;
       loser.elo  = Math.max(100, newLoserElo); loser.losses += 1;
 
-      persistPlayer(winnerName);
-      persistPlayer(loserName);
+      try {
+        await dbUpdateStats(winnerName, winner.elo, winner.wins, winner.losses);
+        await dbUpdateStats(loserName,  loser.elo,  loser.wins,  loser.losses);
+      } catch (e) { console.error('DB update error:', e.message); }
 
       const winSock  = room.players.find(p => p.name === winnerName)?.socket;
       const loseSock = room.players.find(p => p.name === loserName)?.socket;
@@ -285,5 +265,18 @@ io.on('connection', socket => {
   });
 });
 
+// ─── START ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log(`\n🟡 PokéChess running → http://localhost:${PORT}\n`));
+
+async function start() {
+  await initDB();
+  // Load all accounts into memory
+  const rows = await dbGetAllAccounts();
+  rows.forEach(acc => {
+    players[acc.name] = { name: acc.name, elo: acc.elo, wins: acc.wins, losses: acc.losses };
+  });
+  console.log(`Loaded ${rows.length} accounts from DB`);
+  http.listen(PORT, () => console.log(`\n🟡 PokéChess running → http://localhost:${PORT}\n`));
+}
+
+start().catch(err => { console.error('Startup error:', err); process.exit(1); });
