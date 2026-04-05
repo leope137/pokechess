@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PokéChess</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Background atmosphere canvas -->
+  <canvas id="bg-canvas"></canvas>
+  <!-- Gameplay particle effects canvas -->
+  <canvas id="effect-canvas"></canvas>
+  <!-- Win confetti canvas -->
+  <canvas id="confetti-canvas"></canvas>
+
+  <!-- ── AUTH ── -->
+  <div id="auth-screen" class="screen">
+    <div class="auth-box">
+      <h1 class="title auth-title">Poké<span class="title-chess">Chess</span></h1>
+      <p class="subtitle">Paradox Wars</p>
+      <div class="auth-tabs">
+        <button id="tab-login"    class="auth-tab active">Login</button>
+        <button id="tab-register" class="auth-tab">Create Account</button>
+      </div>
+      <div class="auth-form">
+        <input id="auth-name" type="text"     placeholder="Username" maxlength="16" autocomplete="username">
+        <input id="auth-pass" type="password" placeholder="Password" maxlength="64" autocomplete="current-password">
+        <div id="auth-error" class="auth-error" style="display:none"></div>
+        <button id="auth-submit-btn" class="btn-primary" style="width:100%">Login</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MENU ── -->
+  <div id="menu" class="screen" style="display:none">
+    <div class="menu-mascots">
+      <div class="mascot mascot-left" id="mascot-pika">
+        <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png" alt="Pikachu">
+        <div class="mascot-bolt">⚡</div>
+      </div>
+      <div class="menu-center-col">
+        <h1 class="title">Poké<span class="title-chess">Chess</span></h1>
+        <p class="subtitle">Paradox Wars</p>
+
+        <div id="logged-in-bar">
+          <span id="logged-in-name"></span>
+          <button id="logoutBtn" class="btn-logout">Logout</button>
+        </div>
+
+        <div id="elo-badge">
+          <div id="elo-rank-label">Trainer</div>
+          <div id="elo-num">1000</div>
+          <div class="elo-sub">ELO Rating</div>
+          <div id="elo-record"></div>
+        </div>
+
+        <div class="menu-options">
+          <label class="opt-label">Game Length
+            <select id="gameLength">
+              <option value="short">Short — 10 min</option>
+              <option value="medium" selected>Medium — 25 min</option>
+              <option value="long">Long — 45 min</option>
+            </select>
+          </label>
+
+          <label class="opt-label">Mode
+            <select id="gameMode">
+              <option value="ai">vs AI</option>
+              <option value="online">Online Matchmaking</option>
+              <option value="pvp">Local 2-Player</option>
+            </select>
+          </label>
+
+          <div id="difficultyGroup">
+            <label class="opt-label">AI Difficulty
+              <div class="slider-row">
+                <input type="range" id="difficulty" min="1" max="10" value="5">
+                <span id="difficultyVal">5</span>
+              </div>
+            </label>
+            <div id="ai-elo-hint">AI Rating: ~1000</div>
+          </div>
+
+          <button id="startBtn" class="btn-primary">⚡ Start Game</button>
+          <button id="lbBtn" class="btn-secondary">🏆 Leaderboard</button>
+        </div>
+      </div>
+      <div class="mascot mascot-right" id="mascot-bulba">
+        <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1.png" alt="Bulbasaur">
+        <div class="mascot-leaf">🍃</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── QUEUE SCREEN ── -->
+  <div id="queue-screen" class="screen" style="display:none">
+    <div class="queue-content">
+      <h2 class="queue-title">Finding Opponent…</h2>
+      <div class="queue-arena">
+        <div class="queue-side">
+          <img id="queue-pika-img" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png" alt="You" class="queue-pokemon-img bounce">
+          <div id="queue-my-name" class="queue-player-name"></div>
+        </div>
+        <div class="queue-vs-col">
+          <div class="queue-vs">VS</div>
+          <div id="queue-status-text">Searching…</div>
+        </div>
+        <div class="queue-side">
+          <div class="queue-silhouette" id="queue-opp-silhouette">?</div>
+          <div id="queue-opp-name" class="queue-player-name">???</div>
+        </div>
+      </div>
+      <div id="queue-pos"></div>
+      <div id="match-found-banner" style="display:none">⚡ MATCH FOUND! ⚡</div>
+      <div id="queue-countdown" style="display:none"></div>
+      <button id="cancelQueueBtn" class="btn-secondary" style="margin-top:24px">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ── GAME ── -->
+  <div id="game" class="screen" style="display:none">
+    <div id="topBar">
+      <div id="violet-panel" class="player-panel">
+        <span class="player-name violet-text" id="violet-label">Violet</span>
+        <span id="violet-timer" class="timer">25:00</span>
+      </div>
+      <div id="status-bar">
+        <div id="turn-display">Scarlet's Turn</div>
+        <div id="phase-display"></div>
+      </div>
+      <div id="scarlet-panel" class="player-panel">
+        <span class="player-name scarlet-text" id="scarlet-label">Scarlet</span>
+        <span id="scarlet-timer" class="timer">25:00</span>
+      </div>
+    </div>
+
+    <div id="main-area">
+      <div id="board-wrap">
+        <div id="board"></div>
+      </div>
+      <div id="sidebar">
+        <div id="sel-info"><p class="hint">Click a piece to select.</p></div>
+        <div id="actions">
+          <button id="special-btn" style="display:none">✨ Special</button>
+          <button id="bike-btn"    style="display:none">⚡ Bike Mode</button>
+          <button id="cancel-btn"  style="display:none">✕ Cancel</button>
+        </div>
+        <div class="log-title">Battle Log</div>
+        <div id="log"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LEADERBOARD MODAL ── -->
+  <div id="lb-modal" style="display:none">
+    <div class="lb-box">
+      <h2 class="lb-title">🏆 Global Leaderboard</h2>
+      <div id="lb-list"></div>
+      <button id="lb-close-btn" class="btn-secondary" style="margin-top:20px">Close</button>
+    </div>
+  </div>
+
+  <!-- ── GAME OVER ── -->
+  <div id="game-over" class="screen" style="display:none">
+    <div class="gameover-box">
+      <div id="winner-emoji" class="winner-emoji"></div>
+      <h2 id="winner-text"></h2>
+      <div id="elo-change-display" style="display:none" class="elo-change-box"></div>
+      <button id="playAgainBtn" class="btn-primary">Play Again</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
