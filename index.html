@@ -3,8 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PokéChess</title>
+  <title>PokéChess — Paradox Wars</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@400;600;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -32,6 +35,7 @@
         <div id="auth-error" class="auth-error" style="display:none"></div>
         <button id="auth-submit-btn" class="btn-primary" style="width:100%">Login</button>
       </div>
+      <button class="btn-htp-auth" onclick="openHowToPlay()">📖 How to Play</button>
     </div>
   </div>
 
@@ -45,7 +49,7 @@
       <div class="menu-center-col">
         <h1 class="title">Poké<span class="title-chess">Chess</span></h1>
         <p class="subtitle">Paradox Wars</p>
-        <div id="viewer-count" style="font-size:0.75rem;color:#aaa;margin-top:2px">● 1 online</div>
+        <div id="viewer-count" class="viewer-count-pill">● 1 online</div>
 
         <div id="logged-in-bar">
           <span id="logged-in-name"></span>
@@ -83,11 +87,15 @@
                 <span id="difficultyVal">5</span>
               </div>
             </label>
-            <div id="ai-elo-hint">AI Rating: ~1000</div>
+            <div id="ai-tier-badge" class="ai-tier-badge tier-veteran">Veteran</div>
+            <div id="ai-elo-hint">AI Rating: ~1100</div>
           </div>
 
-          <button id="startBtn" class="btn-primary">⚡ Start Game</button>
-          <button id="lbBtn" class="btn-secondary">🏆 Leaderboard</button>
+          <button id="startBtn" class="btn-primary btn-start">⚡ Start Game</button>
+          <div class="menu-bottom-row">
+            <button id="lbBtn"  class="btn-secondary">🏆 Leaderboard</button>
+            <button class="btn-secondary" onclick="openHowToPlay()">📖 How to Play</button>
+          </div>
         </div>
       </div>
       <div class="mascot mascot-right" id="mascot-bulba">
@@ -141,7 +149,13 @@
 
     <div id="main-area">
       <div id="board-wrap">
-        <div id="board"></div>
+        <div id="board-coords-top" class="board-coords board-coords-top"></div>
+        <div class="board-with-ranks">
+          <div id="board-coords-left" class="board-coords board-coords-left"></div>
+          <div id="board"></div>
+          <div id="board-coords-right" class="board-coords board-coords-right"></div>
+        </div>
+        <div id="board-coords-bottom" class="board-coords board-coords-bottom"></div>
       </div>
       <div id="sidebar">
         <div id="sel-info"><p class="hint">Click a piece to select.</p></div>
@@ -173,6 +187,27 @@
       <h2 id="winner-text"></h2>
       <div id="elo-change-display" style="display:none" class="elo-change-box"></div>
       <button id="playAgainBtn" class="btn-primary">Play Again</button>
+    </div>
+  </div>
+
+  <!-- ── HOW TO PLAY MODAL ── -->
+  <div id="htp-modal" class="htp-overlay" style="display:none" onclick="if(event.target===this)closeHowToPlay()">
+    <div class="htp-box">
+      <div class="htp-header">
+        <h2 class="htp-title">📖 How to Play PokéChess</h2>
+        <button class="htp-close-btn" onclick="closeHowToPlay()">✕</button>
+      </div>
+      <canvas id="htp-canvas" class="htp-canvas"></canvas>
+      <div class="htp-text">
+        <h3 id="htp-slide-title"></h3>
+        <p id="htp-slide-body"></p>
+      </div>
+      <div class="htp-dots" id="htp-dots"></div>
+      <div class="htp-nav">
+        <button class="btn-secondary htp-nav-btn" id="htp-prev" onclick="htpNav(-1)">← Prev</button>
+        <span id="htp-counter" class="htp-counter">1 / 8</span>
+        <button class="btn-secondary htp-nav-btn" id="htp-next" onclick="htpNav(1)">Next →</button>
+      </div>
     </div>
   </div>
 

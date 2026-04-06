@@ -656,21 +656,46 @@ function minimax(b,depth,alpha,beta,maximizing){
   }
 }
 
+function getDiffTier(d){
+  return d<=2?'Rookie':d<=4?'Trainer':d<=6?'Veteran':d<=8?'Champion':'Paradox';
+}
+
+const TIER_PARAMS={
+  Rookie:   {depth:1, noise:3500, randChance:0.58, skipSpec:0.72},
+  Trainer:  {depth:1, noise:950,  randChance:0.28, skipSpec:0.45},
+  Veteran:  {depth:2, noise:175,  randChance:0.07, skipSpec:0.14},
+  Champion: {depth:3, noise:40,   randChance:0.00, skipSpec:0.03},
+  Paradox:  {depth:3, noise:7,    randChance:0.00, skipSpec:0.00},
+};
+
 function aiTurn(){
   if(G.over)return;
-  const diff=G.difficulty,depth=diff<=3?1:diff<=7?2:3;
-  const noise=Math.pow(11-diff,2)*8;
-  // Lower difficulties skip their turn occasionally (feels less relentless)
-  const skipChance=diff<=3?0.30:diff<=5?0.18:diff<=7?0.08:0;
-  if(Math.random()<skipChance){endTurn();return;}
-  const moves=getAIMoves('violet',G.board);
-  if(moves.length===0){endTurn();return;}
-  let bestScore=-Infinity,bestMove=moves[0];
-  for(const m of moves){
-    const nb=m.kind==='special'?simSpecial(G.board,m.fr,m.fc,m.tr,m.tc):simMove(G.board,m.fr,m.fc,m.mv);
-    const score=minimax(nb,depth-1,-Infinity,Infinity,false)+(Math.random()-0.3)*noise;
-    if(score>bestScore){bestScore=score;bestMove=m;}
+  const tier=getDiffTier(G.difficulty);
+  const{depth,noise,randChance,skipSpec}=TIER_PARAMS[tier];
+
+  const all=getAIMoves('violet',G.board);
+  if(!all.length){endTurn();return;}
+
+  // Filter specials based on difficulty
+  const moves=(Math.random()<skipSpec&&all.filter(m=>m.kind!=='special').length)
+    ?all.filter(m=>m.kind!=='special'):all;
+
+  let bestMove;
+  if(Math.random()<randChance){
+    // Low difficulties: prefer aimless non-capture moves to feel dumb
+    const aimless=moves.filter(m=>m.kind==='move'&&m.mv.type==='move');
+    const pool=aimless.length&&Math.random()<0.65?aimless:moves;
+    bestMove=pool[Math.floor(Math.random()*pool.length)];
+  }else{
+    let bestScore=-Infinity;
+    bestMove=moves[0];
+    for(const m of moves){
+      const nb=m.kind==='special'?simSpecial(G.board,m.fr,m.fc,m.tr,m.tc):simMove(G.board,m.fr,m.fc,m.mv);
+      const score=minimax(nb,depth-1,-Infinity,Infinity,false)+(Math.random()-0.3)*noise;
+      if(score>bestScore){bestScore=score;bestMove=m;}
+    }
   }
+
   let afr=bestMove.fr,afc=bestMove.fc,atr,atc,atype;
   if(bestMove.kind==='special'){
     atr=bestMove.tr;atc=bestMove.tc;atype='special';
@@ -952,7 +977,7 @@ function showMatchFound(opponent,opponentElo,side){
 function launchGame(){
   document.getElementById('queue-screen').style.display='none';
   document.getElementById('game').style.display='flex';
-  render();updateUI();
+  renderBoardCoords();render();updateUI();
   addLog(`Game started! You are ${G.mySide}. Scarlet moves first.`);
   G.timerInt=setInterval(tickTimer,1000);
   // Set player labels
@@ -1361,6 +1386,183 @@ function launchConfetti(side){
   })();
 }
 
+// HOW TO PLAY
+// ─────────────────────────────────────────────────────────────────────────────
+let htpSlide=0, htpAnimId=null;
+
+const HTP_SLIDES=[
+  {title:'Welcome to PokéChess!',
+   body:'Chess movement meets Pokémon battles. Move pieces like chess, but enemies have HP — deal enough damage to destroy them. Protect your Legendary Pokémon at all costs.',
+   draw(ctx,W,H,t){
+    _htpBg(ctx,W,H);
+    [{x:W*.22,y:H*.42,col:'#e63946',lbl:'KOR',b:0},{x:W*.5,y:H*.42,col:'#ffd700',lbl:'VS',b:1},{x:W*.78,y:H*.42,col:'#9b8dff',lbl:'MIR',b:2}]
+    .forEach(p=>{const by=Math.sin(t*.04+p.b*1.5)*6;_htpPiece(ctx,p.x,p.y+by,p.col,p.lbl,34);});
+    ctx.font='bold 11px Orbitron,monospace';ctx.textAlign='center';
+    ctx.fillStyle='rgba(230,57,70,0.7)';ctx.fillText('Scarlet',W*.22,H*.8);
+    ctx.fillStyle='rgba(155,141,255,0.7)';ctx.fillText('Violet',W*.78,H*.8);
+  }},
+  {title:'The Board',
+   body:'8×8 grid. Scarlet attacks from the bottom, Violet from the top. Each team has a Legendary (your King), Queen, Rooks, Bishops, Knights, and Pawns — each with unique HP and DMG stats.',
+   draw(ctx,W,H,t){
+    _htpBg(ctx,W,H);
+    const cs=30,ox=(W-cs*8)/2,oy=(H-cs*5)/2;
+    for(let r=0;r<5;r++) for(let c=0;c<8;c++){
+      ctx.fillStyle=(r+c)%2===0?'#192b19':'#0d1a0d';ctx.fillRect(ox+c*cs,oy+r*cs,cs,cs);
+    }
+    const glow=Math.sin(t*.05)*.5+.5;
+    [[0,3,'#9b8dff','Q'],[0,4,'#9b8dff','MIR'],[4,3,'#e63946','Q'],[4,4,'#e63946','KOR']].forEach(([r,c,col,lbl])=>{
+      ctx.globalAlpha=glow*.3;ctx.fillStyle=col;ctx.fillRect(ox+c*cs,oy+r*cs,cs,cs);ctx.globalAlpha=1;
+      ctx.fillStyle=col;ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.fillText(lbl,ox+c*cs+cs/2,oy+r*cs+cs/2+3);
+    });
+  }},
+  {title:'Moving Pieces',
+   body:'Click a piece to select it, then click a green-highlighted square to move. Queens go any direction any distance. Rooks go straight lines. Knights jump in an L-shape. Bishops go diagonally.',
+   draw(ctx,W,H,t){
+    _htpBg(ctx,W,H);
+    const cs=38,ox=W/2-cs*1.5,oy=H/2-cs*1.5;
+    for(let r=0;r<3;r++) for(let c=0;c<3;c++){ctx.fillStyle=(r+c)%2===0?'#192b19':'#0d1a0d';ctx.fillRect(ox+c*cs,oy+r*cs,cs,cs);}
+    const pulse=Math.sin(t*.08)*.4+.6;
+    [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]].forEach(([dr,dc])=>{
+      const mx=ox+(1+dc)*cs+cs/2,my=oy+(1+dr)*cs+cs/2;
+      ctx.globalAlpha=pulse;ctx.fillStyle='#22c55e';ctx.shadowBlur=12;ctx.shadowColor='#22c55e';
+      ctx.beginPath();ctx.arc(mx,my,8,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.globalAlpha=1;
+    });
+    _htpPiece(ctx,ox+cs+cs/2,oy+cs+cs/2,'#e63946','Q',15);
+  }},
+  {title:'HP & Attacking',
+   body:'Move onto an enemy square to attack — dealing your DMG to their HP. Pieces survive until HP hits 0. Watch the HP bars: green = healthy, yellow = wounded, red = critical danger!',
+   draw(ctx,W,H,t){
+    _htpBg(ctx,W,H);
+    const hp=Math.max(.06,.9-((t%180)/180)*.84);
+    const cx=W*.56,cy=H*.42;
+    _htpPiece(ctx,cx,cy,'#9b8dff','KNI',30);
+    const bw=80,bh=10,bx=cx-bw/2,by=cy+36;
+    ctx.fillStyle='rgba(0,0,0,.6)';ctx.beginPath();ctx.roundRect(bx,by,bw,bh,4);ctx.fill();
+    ctx.fillStyle=hp>.55?'#22c55e':hp>.25?'#fbbf24':'#e63946';
+    ctx.beginPath();ctx.roundRect(bx,by,bw*hp,bh,4);ctx.fill();
+    if(t%60<30){
+      ctx.fillStyle='#ffd700';ctx.font='bold 20px monospace';ctx.textAlign='center';
+      ctx.fillText('-3',cx+48,cy-8);
+    }
+    _htpPiece(ctx,W*.24,cy,'#e63946','ROK',24);
+    const prog=Math.min(1,(t%60)/30);
+    ctx.strokeStyle='#ffd700';ctx.lineWidth=2;ctx.setLineDash([5,4]);
+    ctx.beginPath();ctx.moveTo(W*.24+20,cy);ctx.lineTo(W*.24+20+prog*50,cy);ctx.stroke();ctx.setLineDash([]);
+  }},
+  {title:'Special Abilities ✨',
+   body:'Each piece has a unique Special. Select a piece and press "✨ Special". Types: Ranged blasts, AOE explosions, Stuns (skip turn), Freezes (skip turn + can\'t use specials). CD means turns until reuse.',
+   draw(ctx,W,H,t){
+    _htpBg(ctx,W,H);
+    const cx=W*.3,cy=H*.44;
+    _htpPiece(ctx,cx,cy,'#e63946','CHY',28);
+    const prog=(t%80)/55;
+    if(prog<=1){
+      const tx=cx+prog*(W*.38);
+      ctx.save();ctx.lineCap='round';
+      ctx.strokeStyle='#ff4500';ctx.lineWidth=10;ctx.shadowBlur=28;ctx.shadowColor='#ff4500';
+      ctx.beginPath();ctx.moveTo(cx+22,cy);ctx.lineTo(Math.min(tx,W*.72),cy);ctx.stroke();
+      ctx.strokeStyle='#ffffff';ctx.lineWidth=2;ctx.shadowBlur=0;
+      ctx.beginPath();ctx.moveTo(cx+22,cy);ctx.lineTo(Math.min(tx,W*.72),cy);ctx.stroke();
+      ctx.restore();
+    }
+    _htpPiece(ctx,W*.72,cy,'#9b8dff','ILE',28);
+    ctx.fillStyle='rgba(255,100,0,.6)';ctx.font='bold 9px monospace';ctx.textAlign='center';
+    ctx.fillText('RUINOUS FLAME — 6 DMG · CD2',cx,cy+54);
+  }},
+  {title:'The Legendary — Your King',
+   body:'Koraidon (Scarlet) and Miraidon (Violet) are your Kings. They have the most HP and can transform into Bike Mode. If your Legendary\'s HP reaches 0 — you lose the game!',
+   draw(ctx,W,H,t){
+    _htpBg(ctx,W,H);
+    const cx=W/2,cy=H*.4;
+    const glow=Math.sin(t*.06)*.5+.5;
+    ctx.save();ctx.shadowBlur=20+glow*20;ctx.shadowColor='#e63946';
+    _htpPiece(ctx,cx,cy,'#e63946','KOR',40);ctx.restore();
+    const bw=140,bh=14,bx=cx-bw/2,by=cy+52;
+    ctx.fillStyle='rgba(0,0,0,.7)';ctx.beginPath();ctx.roundRect(bx,by,bw,bh,5);ctx.fill();
+    const hp=.45+Math.sin(t*.02)*.1;
+    ctx.fillStyle='#fbbf24';ctx.beginPath();ctx.roundRect(bx,by,bw*hp,bh,5);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.5)';ctx.font='9px monospace';ctx.textAlign='center';
+    ctx.fillText(`${Math.round(hp*10)}/10 HP`,cx,by+bh-2);
+    ctx.fillStyle='rgba(230,57,70,.6)';ctx.font='bold 9px monospace';
+    ctx.fillText('⚠ LOSE IF THIS REACHES 0 HP',cx,by+30);
+  }},
+  {title:'Bike Mode & Winning',
+   body:'Transform your Legendary into Bike Mode (costs 1 turn). Next turn, charge in a straight line, smashing through enemies! Win by reducing the enemy Legendary\'s HP to 0.',
+   draw(ctx,W,H,t){
+    _htpBg(ctx,W,H);
+    const phase=Math.floor(t/70)%3,cy=H*.45;
+    if(phase===0){_htpPiece(ctx,W*.2,cy,'#e63946','KOR',28);ctx.fillStyle='#ffd700';ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.fillText('SELECT → BIKE MODE',W*.2,cy+46);}
+    else if(phase===1){ctx.save();ctx.shadowBlur=20;ctx.shadowColor='#ffd700';_htpPiece(ctx,W*.2,cy,'#ffd700','⚡',28);ctx.restore();ctx.fillStyle='#ffd700';ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.fillText('TRANSFORMING…',W*.2,cy+46);}
+    else{
+      const prog=(t%70)/70;const px=W*.2+prog*(W*.65);
+      [W*.42,W*.57,W*.72].forEach(tx=>{
+        _htpPiece(ctx,tx,cy,'#9b8dff','•',14);
+        if(px>tx-8){ctx.fillStyle='#ffd700';ctx.font='bold 14px monospace';ctx.textAlign='center';ctx.fillText('-2',tx,cy-22);}
+      });
+      _htpPiece(ctx,px,cy,'#ffd700','⚡',22);
+      ctx.save();ctx.globalAlpha=.25;ctx.strokeStyle='#ffd700';ctx.lineWidth=5;ctx.shadowBlur=15;ctx.shadowColor='#ffd700';
+      ctx.beginPath();ctx.moveTo(W*.2,cy);ctx.lineTo(px,cy);ctx.stroke();ctx.restore();
+    }
+  }},
+  {title:'Ranks & ELO',
+   body:'Win matches to earn ELO. Climb from Rookie → Novice → Trainer → Veteran → Expert → Master → Grandmaster → Champion → ✦ Paradox ✦. Higher ELO unlocks better team pieces!',
+   draw(ctx,W,H,t){
+    _htpBg(ctx,W,H);
+    const ranks=[['Rookie','#22c55e'],['Trainer','#3b82f6'],['Veteran','#f59e0b'],['Champion','#ef4444'],['✦ Paradox ✦','#c084fc']];
+    const active=Math.floor(t/60)%ranks.length;
+    ranks.forEach(([r,col],i)=>{
+      const isA=i===active;
+      if(isA){ctx.save();ctx.shadowBlur=18;ctx.shadowColor=col;}
+      ctx.fillStyle=isA?col:'rgba(255,255,255,0.22)';
+      ctx.font=`${isA?'bold ':''} ${isA?13:10}px Orbitron,monospace`;ctx.textAlign='center';
+      ctx.fillText(r,W/2,20+i*38);
+      if(isA)ctx.restore();
+    });
+  }},
+];
+
+function _htpBg(ctx,W,H){
+  ctx.clearRect(0,0,W,H);
+  const g=ctx.createLinearGradient(0,0,W,H);
+  g.addColorStop(0,'#020a02');g.addColorStop(1,'#02080e');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+}
+function _htpPiece(ctx,x,y,col,lbl,size){
+  ctx.save();const r=size*.42;
+  ctx.shadowBlur=14;ctx.shadowColor=col;
+  ctx.fillStyle=col==='#e63946'?'#1e0510':col==='#9b8dff'?'#06081a':col==='#ffd700'?'#1a1400':'#080808';
+  ctx.strokeStyle=col;ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.roundRect(x-r,y-r,r*2,r*2,5);ctx.fill();ctx.stroke();
+  ctx.shadowBlur=0;ctx.fillStyle=col;
+  ctx.font=`bold ${Math.max(7,size*.36)}px monospace`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(lbl,x,y);ctx.textBaseline='alphabetic';ctx.restore();
+}
+function openHowToPlay(){
+  document.getElementById('htp-modal').style.display='flex';
+  htpSlide=0;_renderHTPSlide();
+}
+function closeHowToPlay(){
+  document.getElementById('htp-modal').style.display='none';
+  if(htpAnimId){cancelAnimationFrame(htpAnimId);htpAnimId=null;}
+}
+function htpNav(dir){htpSlide=Math.max(0,Math.min(HTP_SLIDES.length-1,htpSlide+dir));_renderHTPSlide();}
+function _renderHTPSlide(){
+  const slide=HTP_SLIDES[htpSlide];
+  document.getElementById('htp-slide-title').textContent=slide.title;
+  document.getElementById('htp-slide-body').textContent=slide.body;
+  document.getElementById('htp-counter').textContent=`${htpSlide+1} / ${HTP_SLIDES.length}`;
+  document.getElementById('htp-prev').disabled=htpSlide===0;
+  document.getElementById('htp-next').disabled=htpSlide===HTP_SLIDES.length-1;
+  const dots=document.getElementById('htp-dots');
+  dots.innerHTML=HTP_SLIDES.map((_,i)=>`<div class="htp-dot${i===htpSlide?' active':''}" onclick="htpSlide=${i};_renderHTPSlide()" style="display:inline-block"></div>`).join('');
+  if(htpAnimId){cancelAnimationFrame(htpAnimId);htpAnimId=null;}
+  const cv=document.getElementById('htp-canvas');if(!cv)return;
+  cv.width=cv.offsetWidth||640;cv.height=220;
+  const ctx=cv.getContext('2d');let frame=0;const thisSlide=htpSlide;
+  function loop(){if(htpSlide!==thisSlide)return;slide.draw(ctx,cv.width,cv.height,frame++);htpAnimId=requestAnimationFrame(loop);}
+  loop();
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // SCREEN SHAKE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1477,6 +1679,19 @@ function activateBike(){
 // ─────────────────────────────────────────────────────────────────────────────
 // RENDERING
 // ─────────────────────────────────────────────────────────────────────────────
+function renderBoardCoords(){
+  const files='abcdefgh';
+  const top=document.getElementById('board-coords-top');
+  const bot=document.getElementById('board-coords-bottom');
+  const left=document.getElementById('board-coords-left');
+  const right=document.getElementById('board-coords-right');
+  if(!top)return;
+  top.innerHTML=files.split('').map(f=>`<span>${f}</span>`).join('');
+  bot.innerHTML=top.innerHTML;
+  left.innerHTML=[8,7,6,5,4,3,2,1].map(n=>`<span>${n}</span>`).join('');
+  right.innerHTML=left.innerHTML;
+}
+
 function render(){
   const boardEl=document.getElementById('board');if(!boardEl)return;
   boardEl.innerHTML='';
@@ -1723,7 +1938,7 @@ function startGame(){
   document.getElementById('scarlet-label').textContent=mode==='pvp'?'Player 1':'You';
   document.getElementById('violet-label').textContent=mode==='pvp'?'Player 2':'AI';
   G.mySide='scarlet';
-  render();updateUI();
+  renderBoardCoords();render();updateUI();
   addLog('Game started! Scarlet moves first.');
   G.timerInt=setInterval(tickTimer,1000);
 }
@@ -1819,10 +2034,17 @@ document.addEventListener('DOMContentLoaded',async ()=>{
 
   // ── Difficulty slider ──
   const sl=document.getElementById('difficulty'),sv=document.getElementById('difficultyVal');
-  sl.addEventListener('input',()=>{
-    sv.textContent=sl.value;
-    document.getElementById('ai-elo-hint').textContent=`AI Rating: ~${AI_ELO_MAP[parseInt(sl.value)]||1000}`;
-  });
+  function updateDiffDisplay(){
+    const v=parseInt(sl.value);
+    sv.textContent=v;
+    const tier=getDiffTier(v);
+    const badge=document.getElementById('ai-tier-badge');
+    badge.textContent=tier;
+    badge.className='ai-tier-badge tier-'+tier.toLowerCase();
+    document.getElementById('ai-elo-hint').textContent=`AI Rating: ~${AI_ELO_MAP[v]||1000}`;
+  }
+  sl.addEventListener('input',updateDiffDisplay);
+  updateDiffDisplay();
 
   // ── Mode selector → show/hide difficulty ──
   const modeSel=document.getElementById('gameMode');
