@@ -138,17 +138,51 @@ const DEFAULT_TEAM = {
   violet: { queen:'iron_jugulis', bishop:'iron_crown',   knight:'iron_bundle', rook:'iron_boulder', pawn:'iron_moth'   },
 };
 
-function buildStart(team={}) {
+// Bot loadouts per difficulty tier — violet team only, ELO validation bypassed
+const BOT_LOADOUTS = {
+  Rookie: [
+    { queen:'iron_jugulis', bishop:'iron_crown',   knight:'iron_bundle', rook:'iron_boulder', pawn:'iron_moth'   },
+    { queen:'iron_valiant', bishop:'iron_crown',   knight:'iron_bundle', rook:'iron_boulder', pawn:'iron_moth'   },
+  ],
+  Trainer: [
+    { queen:'iron_valiant', bishop:'skeledirge',   knight:'pawmot',      rook:'iron_boulder', pawn:'ceruledge'   },
+    { queen:'veluza',       bishop:'iron_crown',   knight:'pawmot',      rook:'iron_hands',   pawn:'ceruledge'   },
+    { queen:'iron_jugulis', bishop:'skeledirge',   knight:'iron_thorns', rook:'iron_boulder', pawn:'iron_moth'   },
+  ],
+  Veteran: [
+    { queen:'veluza',       bishop:'chien_pao',    knight:'iron_thorns', rook:'palafin',      pawn:'ceruledge'   },
+    { queen:'iron_valiant', bishop:'chien_pao',    knight:'pawmot',      rook:'ting_lu',      pawn:'ceruledge'   },
+    { queen:'iron_leaves',  bishop:'skeledirge',   knight:'iron_thorns', rook:'iron_hands',   pawn:'ceruledge'   },
+  ],
+  Champion: [
+    { queen:'iron_leaves',  bishop:'iron_treads',  knight:'iron_thorns', rook:'ting_lu',      pawn:'ceruledge'   },
+    { queen:'hydreigon',    bishop:'chien_pao',    knight:'iron_thorns', rook:'palafin',      pawn:'ceruledge'   },
+    { queen:'iron_leaves',  bishop:'chien_pao',    knight:'iron_thorns', rook:'ting_lu',      pawn:'ceruledge'   },
+  ],
+  Paradox: [
+    { queen:'hydreigon',    bishop:'iron_treads',  knight:'iron_thorns', rook:'ting_lu',      pawn:'ceruledge'   },
+    { queen:'hydreigon',    bishop:'chien_pao',    knight:'iron_thorns', rook:'ting_lu',      pawn:'ceruledge'   },
+  ],
+};
+
+function getBotLoadout(tier){
+  const opts=BOT_LOADOUTS[tier]||BOT_LOADOUTS.Rookie;
+  return opts[Math.floor(Math.random()*opts.length)];
+}
+
+function buildStart(team={}, botViolet=null) {
   const elo=ACCOUNT?.elo||0;
   const unlockedTypes=new Set(UNLOCK_POOL.filter(u=>elo>=u.eloReq).map(u=>u.type));
-  function safeSlot(side,slot,val){
+  function safeSlot(side,slot,val,skipLock=false){
     const def=DEFAULT_TEAM[side][slot];
     if(!val||val===def)return def;
     const entry=UNLOCK_POOL.find(u=>u.type===val&&u.side===side&&u.slot===slot);
-    return (entry&&unlockedTypes.has(val))?val:def;
+    if(!entry)return def;
+    return (skipLock||unlockedTypes.has(val))?val:def;
   }
   const raw_s=Object.assign({},DEFAULT_TEAM.scarlet,team.scarlet||{});
-  const raw_v=Object.assign({},DEFAULT_TEAM.violet, team.violet ||{});
+  const raw_v=botViolet||Object.assign({},DEFAULT_TEAM.violet,team.violet||{});
+  const skipV=!!botViolet;
   const s={
     queen: safeSlot('scarlet','queen', raw_s.queen),
     rook:  safeSlot('scarlet','rook',  raw_s.rook),
@@ -157,11 +191,11 @@ function buildStart(team={}) {
     pawn:  safeSlot('scarlet','pawn',  raw_s.pawn),
   };
   const v={
-    queen: safeSlot('violet','queen', raw_v.queen),
-    rook:  safeSlot('violet','rook',  raw_v.rook),
-    knight:safeSlot('violet','knight',raw_v.knight),
-    bishop:safeSlot('violet','bishop',raw_v.bishop),
-    pawn:  safeSlot('violet','pawn',  raw_v.pawn),
+    queen: safeSlot('violet','queen', raw_v.queen, skipV),
+    rook:  safeSlot('violet','rook',  raw_v.rook,  skipV),
+    knight:safeSlot('violet','knight',raw_v.knight,skipV),
+    bishop:safeSlot('violet','bishop',raw_v.bishop,skipV),
+    pawn:  safeSlot('violet','pawn',  raw_v.pawn,  skipV),
   };
   return [
     [v.rook,v.knight,v.bishop,v.queen,'miraidon',v.bishop,v.knight,v.rook],
@@ -258,9 +292,9 @@ const mkPiece = t => {
            spCd:0, status:null, stTurns:0, bike:false, bikeTr:false, bikeCd:0 };
 };
 
-function initBoard(team={}) {
+function initBoard(team={}, botViolet=null) {
   const b = Array.from({length:8},()=>Array(8).fill(null));
-  buildStart(team).forEach((row,r)=>{ if(row) row.forEach((t,c)=>{ b[r][c]=mkPiece(t); }); });
+  buildStart(team, botViolet).forEach((row,r)=>{ if(row) row.forEach((t,c)=>{ b[r][c]=mkPiece(t); }); });
   return b;
 }
 
@@ -1909,8 +1943,9 @@ function startGame(){
   const rawName=(ACCOUNT?.name||'Player');
   clearInterval(G.timerInt);
 
+  const botViolet=mode==='ai'?getBotLoadout(getDiffTier(diff)):null;
   G={
-    board:initBoard(ACCOUNT?.team||{}),currentTurn:'scarlet',
+    board:initBoard(ACCOUNT?.team||{},botViolet),currentTurn:'scarlet',
     sel:null,legalMoves:[],specMode:false,specTargets:[],
     mode,difficulty:diff,mySide:null,roomId:null,
     playerName:rawName,opponentName:null,
