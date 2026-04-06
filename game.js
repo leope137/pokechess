@@ -1085,7 +1085,7 @@ const effects=[], beams=[], shockwaves=[], lightnings=[];
 function getCellCenter(r,c){
   const board=document.getElementById('board');if(!board)return{x:0,y:0};
   const rect=board.getBoundingClientRect();
-  const CELL=88;
+  const CELL=rect.width/8;
   return{x:rect.left+c*CELL+CELL/2,y:rect.top+r*CELL+CELL/2};
 }
 

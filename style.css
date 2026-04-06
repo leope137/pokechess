@@ -15,6 +15,9 @@
   --text: #d1fae5;
   --font-head: 'Orbitron', 'Segoe UI', sans-serif;
   --font-body: 'Exo 2', 'Segoe UI', sans-serif;
+  /* Responsive cell size: fills available viewport minus sidebar/chrome */
+  --cell: clamp(68px, min(calc((100vw - 380px) / 8), calc((100vh - 120px) / 8)), 110px);
+  --board: calc(var(--cell) * 8);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }
@@ -396,7 +399,7 @@ button:active { transform: translateY(0); }
 
 #topBar {
   display: flex; justify-content: space-between; align-items: center;
-  width: 100%; max-width: 1020px;
+  width: 100%; max-width: calc(var(--board) + 380px);
   background: var(--card); border: 1px solid var(--border);
   border-radius: 12px; padding: 10px 24px;
   backdrop-filter: blur(8px);
@@ -427,7 +430,7 @@ button:active { transform: translateY(0); }
 #turn-display.violet  { color: var(--violet); }
 #phase-display { font-size: 0.7rem; color: #3a5a3a; margin-top: 2px; }
 
-#main-area { display: flex; gap: 14px; align-items: flex-start; max-width: 1020px; width: 100%; }
+#main-area { display: flex; gap: 14px; align-items: flex-start; max-width: calc(var(--board) + 380px); width: 100%; }
 
 /* ── BOARD ── */
 #board-wrap { flex-shrink: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 0; }
@@ -438,13 +441,13 @@ button:active { transform: translateY(0); }
   color: rgba(34,197,94,0.45); letter-spacing: 0; user-select: none; pointer-events: none; }
 .board-coords-left  { flex-direction: column; justify-content: space-around; width: 16px; align-items: center; }
 .board-coords-right { flex-direction: column; justify-content: space-around; width: 16px; align-items: center; }
-.board-coords-top   { flex-direction: row; justify-content: space-around; height: 14px; width: calc(88px*8); margin-left: 16px; }
-.board-coords-bottom{ flex-direction: row; justify-content: space-around; height: 14px; width: calc(88px*8); margin-left: 16px; }
+.board-coords-top   { flex-direction: row; justify-content: space-around; height: 14px; width: var(--board); margin-left: 16px; }
+.board-coords-bottom{ flex-direction: row; justify-content: space-around; height: 14px; width: var(--board); margin-left: 16px; }
 
 #board {
   display: grid;
-  grid-template-columns: repeat(8, 88px);
-  grid-template-rows: repeat(8, 88px);
+  grid-template-columns: repeat(8, var(--cell));
+  grid-template-rows: repeat(8, var(--cell));
   border: 2px solid rgba(34,197,94,0.5);
   border-radius: 4px; overflow: hidden;
   box-shadow:
@@ -455,7 +458,7 @@ button:active { transform: translateY(0); }
 }
 
 .cell {
-  width: 88px; height: 88px;
+  width: var(--cell); height: var(--cell);
   cursor: pointer; position: relative;
   display: flex; align-items: center; justify-content: center;
   transition: filter 0.1s, background 0.15s;
@@ -575,7 +578,7 @@ button:active { transform: translateY(0); }
 
 /* ── PIECES ── */
 .piece {
-  width: 84px; height: 84px; border-radius: 10px;
+  width: calc(var(--cell) - 4px); height: calc(var(--cell) - 4px); border-radius: 10px;
   display: flex; flex-direction: column;
   align-items: center; justify-content: flex-end;
   padding-bottom: 5px; position: relative;
@@ -603,7 +606,7 @@ button:active { transform: translateY(0); }
 .piece img {
   position: absolute; top: -4px; left: 50%;
   transform: translateX(-50%);
-  width: 72px; height: 72px; object-fit: contain;
+  width: calc(var(--cell) * 0.82); height: calc(var(--cell) * 0.82); object-fit: contain;
   filter: drop-shadow(0 3px 7px rgba(0,0,0,0.95));
   transition: filter 0.2s;
 }
@@ -615,7 +618,7 @@ button:active { transform: translateY(0); }
 }
 
 .hpbar {
-  width: 68px; height: 5px;
+  width: calc(var(--cell) * 0.78); height: 5px;
   background: rgba(0,0,0,0.6); border-radius: 3px; overflow: hidden;
   position: relative; z-index: 1; border: 1px solid rgba(255,255,255,0.08);
 }
@@ -639,7 +642,7 @@ button:active { transform: translateY(0); }
   flex: 1; background: var(--card);
   border: 1px solid var(--border); border-radius: 12px;
   padding: 14px; display: flex; flex-direction: column;
-  gap: 10px; max-width: 240px; min-height: 704px;
+  gap: 10px; width: clamp(200px, 22vw, 260px); min-height: var(--board);
   backdrop-filter: blur(8px);
 }
 
