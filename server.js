@@ -102,10 +102,12 @@ function hashPw(password, salt) {
   return crypto.scryptSync(password, salt, 32).toString('hex');
 }
 
-const sessions = {};
-const queue    = [];
-const rooms    = {};
-const players  = {};
+const sessions       = {};
+const queue          = [];
+const rooms          = {};
+const players        = {};
+const lastResultTime = {};   // name → ms timestamp (rate-limit AI save_result)
+const userLocks      = new Set(); // names with a save_result in-flight
 
 function broadcastLeaderboard() {
   const board = Object.values(players)
@@ -237,48 +239,75 @@ app.post('/save_team', async (req, res) => {
   }
 });
 
+const RESULT_COOLDOWN_MS = 90_000; // 90 s minimum between AI game results
+
 app.post('/save_result', async (req, res) => {
   const { token, elo, wins, losses } = req.body || {};
   const name = await dbGetSession(token);
   if (!name) return res.json({ error: 'Not authenticated.' });
 
-  // Always fetch current stats from DB — never trust client values directly
-  let acc = await dbGetAccount(name.toLowerCase());
-  if (!acc) return res.json({ error: 'Player not found.' });
-
-  const currentElo  = acc.elo;
-  const currentWins = acc.wins;
-  const currentLoss = acc.losses;
-
-  const newElo  = Math.round(elo);
-  const newWins = Math.round(wins);
-  const newLoss = Math.round(losses);
-
-  // ELO change must be within K=32 range (max possible single-game swing)
-  const MAX_SWING = 32;
-  if (Math.abs(newElo - currentElo) > MAX_SWING) {
-    console.warn(`[cheat] ${name} tried to set ELO ${currentElo}→${newElo}`);
-    return res.json({ error: 'Invalid ELO change.' });
-  }
-  // wins/losses can only go up by 1 per game
-  if (newWins - currentWins > 1 || newLoss - currentLoss > 1) {
-    console.warn(`[cheat] ${name} tried to set W/L ${currentWins}/${currentLoss}→${newWins}/${newLoss}`);
-    return res.json({ error: 'Invalid win/loss change.' });
-  }
-  // Hard cap
-  const safeElo  = Math.min(3000, Math.max(100, newElo));
-  const safeWins = Math.max(currentWins, newWins);
-  const safeLoss = Math.max(currentLoss, newLoss);
-
-  players[name] = { name: acc.name, elo: safeElo, wins: safeWins, losses: safeLoss };
+  // ── Concurrency lock: reject overlapping requests for the same user ──
+  const lockKey = name.toLowerCase();
+  if (userLocks.has(lockKey)) return res.json({ error: 'Request already in progress.' });
+  userLocks.add(lockKey);
 
   try {
+    // ── Rate limit: 90 s between results ──
+    const now = Date.now();
+    const last = lastResultTime[lockKey] || 0;
+    if (now - last < RESULT_COOLDOWN_MS) {
+      const waitSec = Math.ceil((RESULT_COOLDOWN_MS - (now - last)) / 1000);
+      console.warn(`[ratelimit] ${name} save_result too soon (${waitSec}s remaining)`);
+      return res.json({ error: `Too fast — wait ${waitSec}s before submitting another result.` });
+    }
+
+    // Always fetch current stats from DB — never trust client values directly
+    const acc = await dbGetAccount(lockKey);
+    if (!acc) return res.json({ error: 'Player not found.' });
+
+    const currentElo  = acc.elo;
+    const currentWins = acc.wins;
+    const currentLoss = acc.losses;
+
+    const newElo  = Math.round(elo);
+    const newWins = Math.round(wins);
+    const newLoss = Math.round(losses);
+
+    // ELO change must be within K=32 range (max possible single-game swing)
+    const MAX_SWING = 32;
+    if (Math.abs(newElo - currentElo) > MAX_SWING) {
+      console.warn(`[cheat] ${name} ELO ${currentElo}→${newElo}`);
+      return res.json({ error: 'Invalid ELO change.' });
+    }
+    // wins/losses can only go up by 1 per game (never go down)
+    if (newWins - currentWins > 1 || newLoss - currentLoss > 1 ||
+        newWins < currentWins   || newLoss < currentLoss) {
+      console.warn(`[cheat] ${name} W/L ${currentWins}/${currentLoss}→${newWins}/${newLoss}`);
+      return res.json({ error: 'Invalid win/loss change.' });
+    }
+    // Consistency: a win must raise ELO; a loss must lower it (or stay at floor)
+    const wonGame  = newWins > currentWins;
+    const lostGame = newLoss > currentLoss;
+    if (wonGame  && newElo < currentElo) { console.warn(`[cheat] ${name} win but ELO dropped`); return res.json({ error: 'Invalid result.' }); }
+    if (lostGame && newElo > currentElo) { console.warn(`[cheat] ${name} loss but ELO rose`);  return res.json({ error: 'Invalid result.' }); }
+    // Must claim exactly one outcome (not both win + loss)
+    if (wonGame && lostGame) return res.json({ error: 'Invalid result.' });
+
+    const safeElo  = Math.min(3000, Math.max(100, newElo));
+    const safeWins = newWins;
+    const safeLoss = newLoss;
+
+    players[name] = { name: acc.name, elo: safeElo, wins: safeWins, losses: safeLoss };
+    lastResultTime[lockKey] = now; // stamp only on success
+
     await dbUpdateStats(name, safeElo, safeWins, safeLoss);
     broadcastLeaderboard();
     res.json({ ok: true });
   } catch (e) {
     console.error('Save result error:', e.message);
     res.json({ error: 'Server error.' });
+  } finally {
+    userLocks.delete(lockKey);
   }
 });
 
@@ -337,11 +366,24 @@ io.on('connection', socket => {
   });
 
   socket.on('game_action', ({ roomId, action }) => {
+    // Only relay if this socket is actually in the room
+    const room = rooms[roomId];
+    if (!room || !room.players.some(p => p.socket.id === socket.id)) return;
     socket.to(roomId).emit('opponent_action', action);
   });
 
   socket.on('game_over', async ({ roomId, winnerName, loserName }) => {
     const room = rooms[roomId]; if (!room) return;
+    // ── Auth: socket must be in the room ──
+    if (!room.players.some(p => p.socket.id === socket.id)) return;
+    // ── Auth: both names must be the actual room players ──
+    const roomNames = room.players.map(p => p.name);
+    if (!roomNames.includes(winnerName) || !roomNames.includes(loserName)) return;
+    if (winnerName === loserName) return;
+    // ── Idempotency: prevent double-processing ──
+    if (room.processed) return;
+    room.processed = true;
+
     const winner = players[winnerName], loser = players[loserName];
     if (winner && loser) {
       const newWinnerElo = calcElo(winner.elo, loser.elo, 1);
@@ -371,6 +413,8 @@ io.on('connection', socket => {
     for (const [roomId, room] of Object.entries(rooms)) {
       const me = room.players.find(p => p.socket.id === socket.id);
       if (!me) continue;
+      if (room.processed) break;
+      room.processed = true;
       const opp = room.players.find(p => p.socket.id !== socket.id);
       if (opp) {
         opp.socket.emit('opponent_forfeited');
@@ -402,6 +446,8 @@ io.on('connection', socket => {
     Object.entries(rooms).forEach(([roomId, room]) => {
       const me = room.players.find(p => p.socket.id === socket.id);
       if (!me) return;
+      if (room.processed) { delete rooms[roomId]; return; }
+      room.processed = true;
       const opp = room.players.find(p => p.socket.id !== socket.id);
       if (opp) {
         opp.socket.emit('opponent_disconnected');
