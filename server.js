@@ -366,14 +366,59 @@ io.on('connection', socket => {
     broadcastLeaderboard();
   });
 
+  socket.on('forfeit', async () => {
+    const name = socket.data.name;
+    for (const [roomId, room] of Object.entries(rooms)) {
+      const me = room.players.find(p => p.socket.id === socket.id);
+      if (!me) continue;
+      const opp = room.players.find(p => p.socket.id !== socket.id);
+      if (opp) {
+        opp.socket.emit('opponent_forfeited');
+        const winner = players[opp.name], loser = players[name];
+        if (winner && loser) {
+          const newWinnerElo = calcElo(winner.elo, loser.elo, 1);
+          const newLoserElo  = calcElo(loser.elo,  winner.elo, 0);
+          const gain = newWinnerElo - winner.elo;
+          const loss = loser.elo - newLoserElo;
+          winner.elo = newWinnerElo; winner.wins  += 1;
+          loser.elo  = Math.max(100, newLoserElo); loser.losses += 1;
+          try {
+            await dbUpdateStats(opp.name, winner.elo, winner.wins, winner.losses);
+            await dbUpdateStats(name,     loser.elo,  loser.wins,  loser.losses);
+          } catch(e) { console.error('forfeit DB error:', e.message); }
+          opp.socket.emit('elo_update', { elo: newWinnerElo, delta: +gain, wins: winner.wins,  losses: winner.losses });
+          socket.emit    ('elo_update', { elo: newLoserElo,  delta: -loss, wins: loser.wins,   losses: loser.losses  });
+        }
+      }
+      delete rooms[roomId];
+      broadcastLeaderboard();
+      break;
+    }
+  });
+
   socket.on('disconnect', () => {
     const qi = queue.findIndex(p => p.socket.id === socket.id);
     if (qi >= 0) queue.splice(qi, 1);
     Object.entries(rooms).forEach(([roomId, room]) => {
-      if (room.players.some(p => p.socket.id === socket.id)) {
-        socket.to(roomId).emit('opponent_disconnected');
-        delete rooms[roomId];
+      const me = room.players.find(p => p.socket.id === socket.id);
+      if (!me) return;
+      const opp = room.players.find(p => p.socket.id !== socket.id);
+      if (opp) {
+        opp.socket.emit('opponent_disconnected');
+        // Record loss for disconnecting player
+        const winner = players[opp.name], loser = players[socket.data.name];
+        if (winner && loser) {
+          const prevWinnerElo = winner.elo;
+          const newWinnerElo = calcElo(winner.elo, loser.elo, 1);
+          const newLoserElo  = calcElo(loser.elo,  winner.elo, 0);
+          winner.elo = newWinnerElo; winner.wins  += 1;
+          loser.elo  = Math.max(100, newLoserElo); loser.losses += 1;
+          dbUpdateStats(opp.name,           winner.elo, winner.wins,  winner.losses).catch(console.error);
+          dbUpdateStats(socket.data.name,   loser.elo,  loser.wins,   loser.losses).catch(console.error);
+          opp.socket.emit('elo_update', { elo: newWinnerElo, delta: newWinnerElo - prevWinnerElo, wins: winner.wins, losses: winner.losses });
+        }
       }
+      delete rooms[roomId];
     });
     console.log('[-]', socket.id, socket.data.name);
     broadcastLeaderboard();

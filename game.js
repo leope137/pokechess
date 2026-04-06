@@ -695,11 +695,11 @@ function getDiffTier(d){
 }
 
 const TIER_PARAMS={
-  Rookie:   {depth:1, noise:3500, randChance:0.58, skipSpec:0.72},
-  Trainer:  {depth:1, noise:950,  randChance:0.28, skipSpec:0.45},
-  Veteran:  {depth:2, noise:175,  randChance:0.07, skipSpec:0.14},
-  Champion: {depth:3, noise:40,   randChance:0.00, skipSpec:0.03},
-  Paradox:  {depth:3, noise:7,    randChance:0.00, skipSpec:0.00},
+  Rookie:   {depth:1, noise:5500, randChance:0.75, skipSpec:0.85},
+  Trainer:  {depth:1, noise:1600, randChance:0.42, skipSpec:0.58},
+  Veteran:  {depth:2, noise:300,  randChance:0.13, skipSpec:0.22},
+  Champion: {depth:3, noise:65,   randChance:0.02, skipSpec:0.06},
+  Paradox:  {depth:3, noise:16,   randChance:0.00, skipSpec:0.00},
 };
 
 function aiTurn(){
@@ -732,13 +732,14 @@ function aiTurn(){
 
   let afr=bestMove.fr,afc=bestMove.fc,atr,atc,atype;
   if(bestMove.kind==='special'){
-    atr=bestMove.tr;atc=bestMove.tc;atype='special';
+    atr=bestMove.tr??bestMove.fr;atc=bestMove.tc??bestMove.fc;atype='special';
     if(bestMove.mv.type==='special_self')doSpecial(bestMove.fr,bestMove.fc,bestMove.fr,bestMove.fc);
     else doSpecial(bestMove.fr,bestMove.fc,bestMove.tr,bestMove.tc);
   }else{
     atr=bestMove.mv.row;atc=bestMove.mv.col;atype=bestMove.mv.type;
     doMove(bestMove.fr,bestMove.fc,bestMove.mv.row,bestMove.mv.col,bestMove.mv);
   }
+  G.lastMove={fr:afr,fc:afc,tr:atr,tc:atc};
   if(!G.over){
     const center=getCellCenter(atr,atc);
     if(atype==='attack')spawnEffect(center,'attack',35);
@@ -957,6 +958,10 @@ function initSocket(name){
   socket.on('opponent_action',action=>applyOpponentAction(action));
   socket.on('opponent_disconnected',()=>{
     addLog('Opponent disconnected. You win!');
+    endGame(G.mySide==='scarlet'?'Scarlet':'Violet');
+  });
+  socket.on('opponent_forfeited',()=>{
+    addLog('Opponent resigned. You win!');
     endGame(G.mySide==='scarlet'?'Scarlet':'Violet');
   });
   socket.on('leaderboard',data=>{G.leaderboard=data;renderLeaderboard(data);});
@@ -1650,6 +1655,7 @@ function handleClick(r,c){
     if(tgt){
       const{r:fr,c:fc}=G.sel;
       if(tgt.type==='special_self')doSpecial(fr,fc,fr,fc);else doSpecial(fr,fc,r,c);
+      G.lastMove={fr,fc,tr:r,tc:c};
       sendAction({type:'special',fr,fc,tr:r,tc:c});
       if(!G.over){
         renderWithAnim(fr,fc,r,c,'special');G.animPending=true;
@@ -1664,6 +1670,7 @@ function handleClick(r,c){
     const mv=G.legalMoves.find(m=>m.row===r&&m.col===c);
     if(mv){
       doMove(fr,fc,r,c,mv);
+      G.lastMove={fr,fc,tr:r,tc:c};
       sendAction({type:mv.type==='bike_charge'?'bike_charge':'move',fr,fc,tr:r,tc:c,mv});
       if(!G.over){
         const center=getCellCenter(r,c);
@@ -1731,6 +1738,8 @@ function render(){
   boardEl.innerHTML='';
   const lmMap={};G.legalMoves.forEach(m=>{lmMap[`${m.row},${m.col}`]=m;});
   const spSet=new Set((G.specTargets||[]).map(t=>`${t.row},${t.col}`));
+  const lastFr=G.lastMove?`${G.lastMove.fr},${G.lastMove.fc}`:null;
+  const lastTo=G.lastMove?`${G.lastMove.tr},${G.lastMove.tc}`:null;
 
   for(let r=0;r<8;r++) for(let c=0;c<8;c++){
     const cell=document.createElement('div');
@@ -1741,12 +1750,15 @@ function render(){
     if(isSel)cell.classList.add('sel');
     else if(spSet.has(key))cell.classList.add('spec-tgt');
     else if(mv){if(mv.type==='attack')cell.classList.add('attackable');else if(mv.type==='bike_charge')cell.classList.add('bike-tgt');else cell.classList.add('movable');}
+    if(!isSel&&key===lastFr)cell.classList.add('last-move-from');
+    if(!isSel&&key===lastTo)cell.classList.add('last-move-to');
 
     const p=G.board[r][c];
     if(p){
       const d=DEFS[p.type],pct=Math.round(p.hp/p.maxHp*100);
       const pe=document.createElement('div');
-      pe.className=`piece ${p.side}${p.bike?' bike-mode':''}${p.status?` st-${p.status}`:''}`;
+      const isLegendaryLowHp=DEFS[p.type].legendary&&p.hp<=3;
+      pe.className=`piece ${p.side}${p.bike?' bike-mode':''}${p.status?` st-${p.status}`:''}${isLegendaryLowHp?' legendary-danger':''}`;
       const img=document.createElement('img');
       img.src=spriteUrl(p.type);img.alt=d.name;
       img.title=`${d.name}\nHP: ${p.hp}/${p.maxHp}  DMG: ${p.dmg}`;
@@ -1768,7 +1780,9 @@ function render(){
 
 function updateUI(){
   const td=document.getElementById('turn-display');if(!td)return;
-  if(G.mode==='online'&&G.mySide){
+  if(G.mode==='ai'&&G.currentTurn==='violet'){
+    td.textContent='AI thinking…';
+  }else if(G.mode==='online'&&G.mySide){
     td.textContent=G.currentTurn===G.mySide?'Your Turn!':'Opponent\'s Turn';
   }else{
     td.textContent=`${G.currentTurn==='scarlet'?'Scarlet':'Violet'}'s Turn`;
@@ -1785,9 +1799,11 @@ function updateTimers(){
 
 function updateSidebar(){
   const info=document.getElementById('sel-info'),spBtn=document.getElementById('special-btn'),
-        bkBtn=document.getElementById('bike-btn'),canBtn=document.getElementById('cancel-btn');
+        bkBtn=document.getElementById('bike-btn'),canBtn=document.getElementById('cancel-btn'),
+        resignBtn=document.getElementById('resign-btn');
   if(!info)return;
   spBtn.style.display=bkBtn.style.display=canBtn.style.display='none';
+  if(resignBtn)resignBtn.style.display=(G.over||!G.mode||G.mode==='pvp')?'none':'block';
   if(!G.sel){info.innerHTML='<p class="hint">Click a piece to select.</p>';return;}
   const{r,c}=G.sel,p=G.board[r][c];if(!p){info.innerHTML='';return;}
   const d=DEFS[p.type];
@@ -1951,7 +1967,7 @@ function startGame(){
     playerName:rawName,opponentName:null,
     timers:{scarlet:TIMES[length],violet:TIMES[length]},
     over:false,log:[],timerInt:null,animPending:false,
-    leaderboard:[],onlineEloDelta:null,
+    leaderboard:[],onlineEloDelta:null,lastMove:null,
   };
 
   if(mode==='online'){
@@ -1980,6 +1996,15 @@ function startGame(){
 
 function showMenu(){
   clearInterval(G.timerInt);
+  if(G.mode==='ai'&&!G.over&&ACCOUNT){
+    const aiElo=AI_ELO_MAP[G.difficulty]||1000;
+    const newElo=calcNewElo(ACCOUNT.elo,aiElo,0);
+    const newLosses=ACCOUNT.losses+1;
+    ACCOUNT.elo=newElo;ACCOUNT.losses=newLosses;
+    saveResultToServer(newElo,ACCOUNT.wins,newLosses);
+  }else if(G.mode==='online'&&!G.over&&socket){
+    socket.emit('forfeit');
+  }
   if(socket){socket.emit('leave_queue');socket.disconnect();socket=null;}
   ['game-over','game','queue-screen'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
   document.getElementById('menu').style.display='flex';
@@ -2100,6 +2125,21 @@ document.addEventListener('DOMContentLoaded',async ()=>{
     document.getElementById('mute-btn').textContent=muted?'🔇 Muted':'🔊 Sound';
   });
   document.getElementById('playAgainBtn').addEventListener('click',showMenu);
+  document.getElementById('resign-btn').addEventListener('click',()=>{
+    if(G.over||G.mode==='pvp')return;
+    if(!confirm('Resign? This counts as a loss.'))return;
+    if(G.mode==='ai'){endGame('Violet');}
+    else if(G.mode==='online'&&socket){socket.emit('forfeit');endGame(G.mySide==='scarlet'?'Violet':'Scarlet');}
+  });
+  window.addEventListener('beforeunload',()=>{
+    if(G.mode==='ai'&&!G.over&&ACCOUNT?.token){
+      const aiElo=AI_ELO_MAP[G.difficulty]||1000;
+      const newElo=calcNewElo(ACCOUNT.elo,aiElo,0);
+      navigator.sendBeacon('/save_result',new Blob([JSON.stringify({token:ACCOUNT.token,elo:newElo,wins:ACCOUNT.wins,losses:ACCOUNT.losses+1})],{type:'application/json'}));
+    }else if(G.mode==='online'&&!G.over&&socket){
+      socket.emit('forfeit');
+    }
+  });
   document.getElementById('cancelQueueBtn').addEventListener('click',()=>{
     if(socket){socket.emit('leave_queue');socket.disconnect();socket=null;}
     showMenu();

@@ -395,7 +395,7 @@ button:active { transform: translateY(0); }
 }
 
 /* ── GAME ── */
-#game { padding: 10px; gap: 10px; align-items: flex-start; min-height: 100vh; justify-content: center; }
+#game { padding: 10px; gap: 10px; align-items: center; min-height: 100vh; justify-content: center; }
 
 #topBar {
   display: flex; justify-content: space-between; align-items: center;
@@ -430,7 +430,7 @@ button:active { transform: translateY(0); }
 #turn-display.violet  { color: var(--violet); }
 #phase-display { font-size: 0.7rem; color: #3a5a3a; margin-top: 2px; }
 
-#main-area { display: flex; gap: 14px; align-items: flex-start; max-width: calc(var(--board) + 380px); width: 100%; }
+#main-area { display: flex; gap: 14px; align-items: flex-start; max-width: calc(var(--board) + 380px); width: 100%; justify-content: center; }
 
 /* ── BOARD ── */
 #board-wrap { flex-shrink: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 0; }
@@ -511,6 +511,26 @@ button:active { transform: translateY(0); }
   pointer-events: none; animation: specPulse 0.7s ease-in-out infinite;
 }
 @keyframes specPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* Last move highlight */
+.cell.last-move-from { background: rgba(255, 200, 0, 0.12) !important; }
+.cell.last-move-to   { background: rgba(255, 200, 0, 0.22) !important; box-shadow: inset 0 0 0 2px rgba(255,215,0,0.35); }
+
+/* Legendary low HP danger pulse */
+@keyframes dangerPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(231,29,54,0); }
+  50%     { box-shadow: 0 0 18px 6px rgba(231,29,54,0.7); }
+}
+.piece.legendary-danger { animation: dangerPulse 0.7s ease-in-out infinite !important; }
+
+/* Resign button */
+#resign-btn {
+  font-size: 0.75rem; padding: 5px 10px; margin-top: 4px;
+  background: rgba(231,29,54,0.12);
+  color: #e63946;
+  border: 1px solid rgba(231,29,54,0.35);
+}
+#resign-btn:hover { background: rgba(231,29,54,0.22); }
 
 /* ── PIECE ANIMATIONS ── */
 @keyframes arrive {
