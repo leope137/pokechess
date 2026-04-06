@@ -15,8 +15,8 @@
   --text: #d1fae5;
   --font-head: 'Orbitron', 'Segoe UI', sans-serif;
   --font-body: 'Exo 2', 'Segoe UI', sans-serif;
-  /* Responsive cell size: fills available viewport minus sidebar/chrome */
-  --cell: clamp(68px, min(calc((100vw - 380px) / 8), calc((100vh - 120px) / 8)), 110px);
+  /* Responsive cell size: fills viewport height, constrained by width */
+  --cell: min(calc((100vh - 130px) / 8), calc((100vw - 340px) / 8));
   --board: calc(var(--cell) * 8);
 }
 
