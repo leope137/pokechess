@@ -901,6 +901,7 @@ function initSocket(name){
     endGame(G.mySide==='scarlet'?'Scarlet':'Violet');
   });
   socket.on('leaderboard',data=>{G.leaderboard=data;renderLeaderboard(data);});
+  socket.on('viewer_count',n=>{const el=document.getElementById('viewer-count');if(el)el.textContent=`● ${n} online`;});
   socket.on('elo_update',({elo,delta,wins,losses})=>{
     if(ACCOUNT){ACCOUNT.elo=elo;ACCOUNT.wins=wins??ACCOUNT.wins;ACCOUNT.losses=losses??ACCOUNT.losses;}
     G.onlineEloDelta={elo,delta};

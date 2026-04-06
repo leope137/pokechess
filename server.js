@@ -283,8 +283,13 @@ app.post('/save_result', async (req, res) => {
 });
 
 // ─── SOCKET LOGIC ────────────────────────────────────────────────────────────
+function broadcastViewerCount() {
+  io.emit('viewer_count', io.engine.clientsCount);
+}
+
 io.on('connection', socket => {
   console.log('[+]', socket.id);
+  broadcastViewerCount();
 
   socket.on('register', ({ name, elo }) => {
     if (!players[name]) players[name] = { name, elo: elo || 1000, wins: 0, losses: 0 };
@@ -372,6 +377,7 @@ io.on('connection', socket => {
     });
     console.log('[-]', socket.id, socket.data.name);
     broadcastLeaderboard();
+    broadcastViewerCount();
   });
 });
 
